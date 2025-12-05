@@ -1,0 +1,57 @@
+# Node modules
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Build output
+dist/
+build/
+
+# Cache
+.cache/
+.tmp/
+.eslintcache
+
+# OS system files
+.DS_Store
+Thumbs.db
+
+# VSCode
+.vscode/
+
+# Coverage
+coverage/
+
+# PM2 logs
+.pids
+*.pid
+*.seed
+*.pid.lock
+
+# Editor folders
+.idea/
+*.swp
+
+# Temporary files
+temp/
+tmp/
+
+# Agent-related internal files
+.agent/
+.agent.json
+agent.json
+*agent*
+*.agent
