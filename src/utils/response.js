@@ -1,17 +1,22 @@
+const formatResponse = (success, message, data = null, errors = null) => {
+  return {
+    success,
+    message,
+    ...(data !== null ? { data } : {}),
+    ...(errors !== null ? { errors } : {}),
+  }
+}
+
 module.exports = {
-  success(res, status, message, data = {}) {
-    return res.status(status).json({
-      success: true,
-      message,
-      data,
-    })
+  success(response, status, message, data = {}) {
+    return response.status(status).json(formatResponse(true, message, data))
   },
 
-  fail(res, status, message, errors = null) {
-    return res.status(status).json({
-      success: false,
-      message,
-      errors,
-    })
+  error(response, status, message, errors = null) {
+    return response
+      .status(status)
+      .json(formatResponse(false, message, null, errors))
   },
+
+  formatResponse,
 }

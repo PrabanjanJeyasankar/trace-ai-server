@@ -1,7 +1,7 @@
 const { asyncHandler } = require('../middleware/asyncHandler')
 
-const healthCheck = asyncHandler(async (req, res) => {
-  res.status(200).json({
+const healthCheck = asyncHandler(async (request, response) => {
+  response.status(200).json({
     status: 'success',
     message: 'Server is running',
     timestamp: new Date().toISOString(),
@@ -9,8 +9,8 @@ const healthCheck = asyncHandler(async (req, res) => {
   })
 })
 
-const getStatus = asyncHandler(async (req, res) => {
-  res.status(200).json({
+const getStatus = asyncHandler(async (request, response) => {
+  response.status(200).json({
     status: 'success',
     data: {
       environment: process.env.NODE_ENV,

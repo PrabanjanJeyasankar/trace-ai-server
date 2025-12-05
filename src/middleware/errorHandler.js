@@ -1,4 +1,5 @@
 const logger = require('../utils/logger')
+const { formatResponse } = require('../utils/response')
 
 class AppError extends Error {
   constructor(message, statusCode, errors = null) {
@@ -14,12 +15,16 @@ const errorHandler = (error, request, response, next) => {
 
   logger.error(error.message)
 
-  return response.status(status).json({
-    success: false,
-    message: error.message || 'Internal server error',
-    errors: error.errors || null,
-    stack: isDev ? error.stack : undefined,
-  })
+  const formatted = formatResponse(
+    false,
+    error.message || 'Internal server error',
+    null,
+    error.errors || null
+  )
+
+  if (isDev) formatted.stack = error.stack
+
+  return response.status(status).json(formatted)
 }
 
 module.exports = { AppError, errorHandler }

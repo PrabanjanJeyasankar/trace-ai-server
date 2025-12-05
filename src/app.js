@@ -6,8 +6,8 @@ const logger = require('./utils/logger')
 
 const app = express()
 
-app.use((req, res, next) => {
-  logger.info(`${req.method} ${req.originalUrl}`)
+app.use((request, response, next) => {
+  logger.info(`${request.method} ${request.originalUrl}`)
   next()
 })
 
@@ -17,7 +17,7 @@ app.use(express.urlencoded({ extended: true }))
 
 app.use('/api/v1', router)
 
-app.use((req, res, next) => {
+app.use((request, response, next) => {
   next(new AppError('Route not found', 404))
 })
 
