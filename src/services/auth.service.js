@@ -9,20 +9,22 @@ const generateToken = (userId) => {
   })
 }
 
-const createUser = async (email, password) => {
+const createUser = async (email, password, name) => {
   const existingUser = await User.findOne({ email })
 
   if (existingUser) {
     const isMatch = await existingUser.comparePassword(password)
-
     if (!isMatch) {
       throw new AppError('Email already registered. Please login.', 401)
     }
-
     return { existing: true, user: existingUser }
   }
 
-  const newUser = await User.create({ email, password })
+  const newUser = await User.create({
+    email,
+    password,
+    name,
+  })
 
   return { existing: false, user: newUser }
 }

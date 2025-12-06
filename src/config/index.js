@@ -24,4 +24,11 @@ module.exports = {
   logging: {
     level: process.env.LOG_LEVEL || 'info',
   },
+
+  ai: {
+    provider: process.env.AI_PROVIDER || 'openrouter',
+    defaultModelOpenRouter:
+      process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.1-8b-instruct',
+    defaultModelOllama: process.env.OLLAMA_MODEL || 'llama3.2',
+  },
 }
