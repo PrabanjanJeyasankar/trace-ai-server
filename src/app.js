@@ -4,6 +4,7 @@ const router = require('./routes')
 const { AppError, errorHandler } = require('./middleware/errorHandler')
 const logger = require('./utils/logger')
 const { globalRateLimiter } = require('./utils/rateLimiter')
+const config = require('./config')
 
 const app = express()
 
@@ -12,7 +13,7 @@ app.use((request, response, next) => {
   next()
 })
 
-app.use(cors())
+app.use(cors(config.cors))
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
