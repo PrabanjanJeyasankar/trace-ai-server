@@ -4,14 +4,7 @@ const authService = require('../services/auth.service')
 const config = require('../config')
 
 const protect = async (request, response, next) => {
-  let token
-
-  if (
-    request.headers.authorization &&
-    request.headers.authorization.startsWith('Bearer')
-  ) {
-    token = request.headers.authorization.split(' ')[1]
-  }
+  const token = request.cookies.accessToken
 
   if (!token) {
     throw new AppError('Not authorized', 401)

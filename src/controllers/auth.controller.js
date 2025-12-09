@@ -14,10 +14,17 @@ const signup = asyncHandler(async (request, response) => {
 
   await authService.storeRefreshToken(result.user._id, refreshToken)
 
+  response.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 15 * 60 * 1000,
+  })
+
   response.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   })
 
@@ -31,7 +38,6 @@ const signup = asyncHandler(async (request, response) => {
           id: result.user._id,
           email: result.user.email,
         },
-        accessToken,
       }
     )
   }
@@ -41,7 +47,6 @@ const signup = asyncHandler(async (request, response) => {
       id: result.user._id,
       email: result.user.email,
     },
-    accessToken,
   })
 })
 
@@ -54,10 +59,17 @@ const login = asyncHandler(async (request, response) => {
 
   await authService.storeRefreshToken(user._id, refreshToken)
 
+  response.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 15 * 60 * 1000,
+  })
+
   response.cookie('refreshToken', refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   })
 
@@ -66,7 +78,6 @@ const login = asyncHandler(async (request, response) => {
       id: user._id,
       email: user.email,
     },
-    accessToken,
   })
 })
 
@@ -92,18 +103,34 @@ const refresh = asyncHandler(async (request, response) => {
   const user = await authService.verifyRefreshToken(refreshToken)
   const accessToken = authService.generateAccessToken(user._id)
 
+  response.cookie('accessToken', accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 15 * 60 * 1000,
+  })
+
   success(response, 200, 'Token refreshed successfully', {
-    accessToken,
+    user: {
+      id: user._id,
+      email: user.email,
+    },
   })
 })
 
 const logout = asyncHandler(async (request, response) => {
   await authService.clearRefreshToken(request.user.id)
 
+  response.clearCookie('accessToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  })
+
   response.clearCookie('refreshToken', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
   })
 
   success(response, 200, 'Logged out successfully', {})
