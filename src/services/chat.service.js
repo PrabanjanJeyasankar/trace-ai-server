@@ -4,7 +4,7 @@ const { ApiError } = require('../utils/ApiError')
 const { ai } = require('../config')
 const MemoryService = require('../services/embeddings/memory.service')
 
-const createChat = async ({ userId, firstMessageContent }) => {
+const createChat = async ({ userId, firstMessageContent, mode }) => {
   const provisionalTitle =
     firstMessageContent?.trim()?.slice(0, 50) || 'New Chat'
 
@@ -16,6 +16,7 @@ const createChat = async ({ userId, firstMessageContent }) => {
     title: provisionalTitle,
     lastMessage: firstMessageContent,
     model: defaultModel,
+    mode: mode || 'default',
   })
 
   return chat

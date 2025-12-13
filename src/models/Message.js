@@ -1,5 +1,18 @@
 const mongoose = require('mongoose')
 
+const sourceSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true },
+    url: { type: String, required: true },
+    source: { type: String, required: true },
+    lines: { type: String, required: true },
+    publishedAt: { type: String, required: true },
+    similarity: { type: Number, required: true },
+    finalScore: { type: Number, required: true },
+  },
+  { _id: false }
+)
+
 const messageVersionSchema = new mongoose.Schema(
   {
     content: { type: String, required: true, trim: true },
@@ -29,6 +42,12 @@ const messageSchema = new mongoose.Schema(
       required: true,
     },
 
+    mode: {
+      type: String,
+      enum: ['default', 'news'],
+      default: 'default',
+    },
+
     versions: {
       type: [messageVersionSchema],
       default: [],
@@ -41,6 +60,15 @@ const messageSchema = new mongoose.Schema(
   },
   { timestamps: true }
 )
+
+messageSchema.add({
+  sources: {
+    type: [sourceSchema],
+    default: function () {
+      return this.role === 'assistant' ? [] : undefined
+    },
+  },
+})
 
 messageSchema.index({ 'versions.content': 'text' })
 

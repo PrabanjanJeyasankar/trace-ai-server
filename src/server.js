@@ -2,6 +2,7 @@ const connectDB = require('./config/db')
 const app = require('./app')
 const config = require('./config')
 const { initQdrantCollections } = require('./lib/qdrant.collections')
+const CronService = require('./services/cron.service')
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught exception:', error)
@@ -11,6 +12,8 @@ process.on('uncaughtException', (error) => {
 const startServer = async () => {
   await connectDB()
   await initQdrantCollections()
+
+  CronService.startDailyNewsIngestion()
 
   const server = app.listen(config.server.port, () => {
     const { host, port, env } = config.server
@@ -61,6 +64,7 @@ const startServer = async () => {
 
   process.on('SIGTERM', () => {
     console.log('SIGTERM received. Shutting down')
+    CronService.stopDailyNewsIngestion()
     server.close(() => console.log('Process terminated'))
   })
 }

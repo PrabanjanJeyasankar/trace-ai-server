@@ -4,13 +4,14 @@ const { success } = require('../utils/response')
 
 const createMessage = asyncHandler(async (request, response) => {
   const chatId = request.params.chatId || null
-  const { content } = request.body
+  const { content, mode } = request.body
 
   try {
     const result = await messageService.createMessage({
       chatId,
       userId: request.user.id,
       content,
+      mode,
     })
 
     return success(response, 201, 'Message created', result)
@@ -51,7 +52,7 @@ const regenerateMessage = asyncHandler(async (request, response) => {
     messageId,
   })
 
-  return success(response, 200, 'Assistant regenerated', { assistant: result })
+  return success(response, 200, 'Assistant regenerated', result)
 })
 
 const getMessages = asyncHandler(async (request, response) => {

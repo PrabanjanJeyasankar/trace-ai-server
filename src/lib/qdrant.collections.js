@@ -2,6 +2,7 @@ const client = require('./qdrant.client')
 const logger = require('../utils/logger')
 
 const MESSAGE_COLLECTION = 'messages_memory'
+const NEWS_COLLECTION = 'news_articles'
 const VECTOR_DIM = 384
 
 async function initQdrantCollections() {
@@ -47,6 +48,44 @@ async function initQdrantCollections() {
         logger.info('messages_memory already exists with correct dimensions')
       }
     }
+
+    const hasNews = existing.collections.some((c) => c.name === NEWS_COLLECTION)
+
+    if (!hasNews) {
+      logger.info('Creating Qdrant collection: news_articles')
+
+      await client.createCollection(NEWS_COLLECTION, {
+        vectors: {
+          size: VECTOR_DIM,
+          distance: 'Cosine',
+        },
+      })
+
+      logger.info('news_articles collection created')
+    } else {
+      const newsCollectionInfo = await client.getCollection(NEWS_COLLECTION)
+      const newsDim = newsCollectionInfo.config?.params?.vectors?.size
+
+      if (newsDim !== VECTOR_DIM) {
+        logger.warn(
+          `news_articles exists with wrong dimension (${newsDim} vs ${VECTOR_DIM}). Recreating...`
+        )
+        await client.deleteCollection(NEWS_COLLECTION)
+
+        await client.createCollection(NEWS_COLLECTION, {
+          vectors: {
+            size: VECTOR_DIM,
+            distance: 'Cosine',
+          },
+        })
+
+        logger.info(
+          'news_articles collection recreated with correct dimensions'
+        )
+      } else {
+        logger.info('news_articles already exists with correct dimensions')
+      }
+    }
   } catch (error) {
     logger.error(`Qdrant collection init failed: ${error.message}`)
     throw error
@@ -55,5 +94,6 @@ async function initQdrantCollections() {
 
 module.exports = {
   MESSAGE_COLLECTION,
+  NEWS_COLLECTION,
   initQdrantCollections,
 }

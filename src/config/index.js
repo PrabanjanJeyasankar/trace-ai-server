@@ -31,7 +31,7 @@ module.exports = {
   },
 
   ai: {
-    provider: process.env.AI_PROVIDER || 'gemini',
+    provider: process.env.AI_PROVIDER || 'ollama',
     model: process.env.GEMINI_MODEL,
   },
 }
