@@ -1,6 +1,6 @@
 # AI Chat Server
 
-A Node.js backend for an AI chat application, supporting authentication, vector storage with Qdrant, and AI model integration via Gemini.
+A Node.js backend for an AI chat application, supporting authentication, vector storage with Qdrant, and AI model integration via OpenAI (for chat) and Gemini (for embeddings).
 
 ## Prerequisites
 
@@ -16,7 +16,7 @@ A Node.js backend for an AI chat application, supporting authentication, vector 
 2. Configure environment variables:
    cp .env.example .env
 
-   Update the .env file with your configuration details (MongoDB URI, Qdrant URL, Gemini API Key, etc.).
+   Update the .env file with your configuration details (MongoDB URI, Qdrant URL, OpenAI API Key, Gemini API Key for embeddings, etc.).
 
 ## Usage
 
@@ -33,9 +33,11 @@ npm start
 - MONGO_URI: MongoDB connection string
 - JWT_SECRET: Secret for JWT signing
 - QDRANT_URL: URL for Qdrant vector database
-- AI_PROVIDER: AI provider service (e.g., gemini)
-- GEMINI_API_KEY: API key for Google Gemini
-- GEMINI_MODEL: Model name for Gemini
+- AI_PROVIDER: AI provider service (e.g., openai, ollama)
+- OPENAI_API_KEY: API key for OpenAI (chat)
+- OPENAI_MODEL: Model name for OpenAI (chat)
+- GEMINI_API_KEY: API key for Google Gemini (embeddings)
+- GEMINI_MODEL: Model name for Gemini (embeddings)
 
 # Documentation Index
 
@@ -123,10 +125,14 @@ Cloud infrastructure and deployment architecture:
 └─────────────────────────────────────┘
            │
            ▼
-    ┌──────────────┐
-    │  Gemini API  │
-    │  (Google)    │
-    └──────────────┘
+    ┌────────────────────┐
+    │  OpenAI API (Chat) │
+    └────────────────────┘
+           │
+           ▼
+    ┌───────────────────────────┐
+    │  Gemini API (Embeddings) │
+    └───────────────────────────┘
 ```
 
 ## 🔑 Key Features
@@ -152,9 +158,8 @@ Cloud infrastructure and deployment architecture:
 
 ### AI Integration
 
-- **Provider**: Google Gemini
-- **Model**: gemini-2.5-flash-lite
-- **Use Case**: Chat completions and embeddings
+- **Chat Provider**: OpenAI (`OPENAI_MODEL`, e.g., `gpt-3.5-turbo`)
+- **Embedding Provider**: Google Gemini (`GEMINI_MODEL`, e.g., `text-embedding-004`)
 
 ### Infrastructure
 
@@ -223,7 +228,9 @@ NODE_ENV=production
 PORT=3000
 MONGO_URI=mongodb://...
 JWT_SECRET=your_secret
-GEMINI_API_KEY=your_key
+OPENAI_API_KEY=your_openai_key
+OPENAI_MODEL=gpt-3.5-turbo
+GEMINI_API_KEY=your_gemini_key
 GEMINI_MODEL=gemini-2.5-flash-lite
 QDRANT_URL=http://qdrant:6333
 CORS_ORIGIN=*
@@ -277,7 +284,7 @@ This documentation is provided for reference and usage of the AI Chat Server.
 ## 🔄 Version History
 
 - **v1.0.0**: Initial release with core chat functionality
-- Gemini API integration
+- OpenAI (chat) + Gemini (embeddings) API integration
 - Vector search with Qdrant
 - Automated CI/CD pipeline
 - AWS EC2 deployment

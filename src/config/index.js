@@ -31,8 +31,8 @@ module.exports = {
   },
 
   ai: {
-    provider: process.env.AI_PROVIDER || 'ollama',
-    model: process.env.GEMINI_MODEL,
+    provider: process.env.AI_PROVIDER || 'openai',
+    model: process.env.OPENAI_MODEL,
   },
 
   redis: {

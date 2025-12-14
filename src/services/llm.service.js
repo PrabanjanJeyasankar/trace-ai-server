@@ -5,7 +5,7 @@ const { ApiError } = require('../utils/ApiError')
 const { MAX_SINGLE_MESSAGE_CHARS, ERRORS } = require('../config/llmLimits')
 
 const resolveProvider = () => {
-  const provider = config.ai.provider || 'gemini'
+  const provider = config.ai.provider || 'openai'
 
   if (provider === 'ollama') {
     return {
@@ -16,9 +16,9 @@ const resolveProvider = () => {
   }
 
   return {
-    name: 'gemini',
-    model: providers.gemini.model,
-    apiKey: providers.gemini.apiKey,
+    name: 'openai',
+    model: providers.openai.model,
+    apiKey: providers.openai.apiKey,
   }
 }
 
@@ -33,19 +33,23 @@ const validateLLMInput = (messages) => {
   }
 }
 
-const callGemini = async (model, messages) => {
-  const contents = messages.map((m) => ({
-    role: m.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: m.content }],
-  }))
-
+const callOpenAI = async (model, messages) => {
   const response = await axios.post(
-    `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${providers.gemini.apiKey}`,
-    { contents },
-    { headers: { 'Content-Type': 'application/json' }, timeout: 30000 }
+    'https://api.openai.com/v1/chat/completions',
+    {
+      model,
+      messages,
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${providers.openai.apiKey}`,
+      },
+      timeout: 30000,
+    }
   )
 
-  return response.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || ''
+  return response.data?.choices?.[0]?.message?.content?.trim() || ''
 }
 
 const callOllama = async ({ baseUrl, model, messages }) => {
@@ -83,7 +87,7 @@ const processLLM = async ({ messages, isFirstMessage }) => {
   if (name === 'ollama') {
     assistantReply = await callOllama({ baseUrl, model, messages })
   } else {
-    assistantReply = await callGemini(model, messages)
+    assistantReply = await callOpenAI(model, messages)
   }
 
   let autoTitle = null
@@ -94,7 +98,7 @@ const processLLM = async ({ messages, isFirstMessage }) => {
     if (name === 'ollama') {
       raw = await callOllama({ baseUrl, model, messages: titleMessages })
     } else {
-      raw = await callGemini(model, titleMessages)
+      raw = await callOpenAI(model, titleMessages)
     }
 
     autoTitle = raw.replace(/["']/g, '').trim().slice(0, 80)
