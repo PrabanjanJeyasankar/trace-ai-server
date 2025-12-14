@@ -1,10 +1,20 @@
 const fs = require('fs')
 const path = require('path')
+const config = require('../config')
 
 const logDir = path.join(process.cwd(), 'logs')
 if (!fs.existsSync(logDir)) fs.mkdirSync(logDir)
 
 const logFile = path.join(logDir, 'app.log')
+
+const LEVELS = { debug: 10, info: 20, warn: 30, error: 40 }
+const configuredLevel = String(config?.logging?.level || 'info').toLowerCase()
+const configuredRank = LEVELS[configuredLevel] ?? LEVELS.info
+
+const shouldLog = (level) => {
+  const rank = LEVELS[level] ?? LEVELS.info
+  return rank >= configuredRank
+}
 
 const write = (level, message) => {
   const entry = `${new Date().toISOString()} [${level}] ${message}\n`
@@ -12,27 +22,53 @@ const write = (level, message) => {
 }
 
 const devLogger = {
-  info: (...args) => console.log(...args),
-  warn: (...args) => console.warn(...args),
-  error: (...args) => console.error(...args),
+  debug: (...args) => {
+    if (!shouldLog('debug')) return
+    console.log(...args)
+  },
+  info: (...args) => {
+    if (!shouldLog('info')) return
+    console.log(...args)
+  },
+  warn: (...args) => {
+    if (!shouldLog('warn')) return
+    console.warn(...args)
+  },
+  error: (...args) => {
+    if (!shouldLog('error')) return
+    console.error(...args)
+  },
 }
 
 const prodLogger = {
-  info: (...args) =>
+  debug: (...args) => {
+    if (!shouldLog('debug')) return
+    write(
+      'DEBUG',
+      args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ')
+    )
+  },
+  info: (...args) => {
+    if (!shouldLog('info')) return
     write(
       'INFO',
       args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ')
-    ),
-  warn: (...args) =>
+    )
+  },
+  warn: (...args) => {
+    if (!shouldLog('warn')) return
     write(
       'WARN',
       args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ')
-    ),
-  error: (...args) =>
+    )
+  },
+  error: (...args) => {
+    if (!shouldLog('error')) return
     write(
       'ERROR',
       args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' ')
-    ),
+    )
+  },
 }
 
 module.exports = process.env.NODE_ENV === 'production' ? prodLogger : devLogger

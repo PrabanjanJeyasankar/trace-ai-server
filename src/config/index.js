@@ -34,4 +34,12 @@ module.exports = {
     provider: process.env.AI_PROVIDER || 'ollama',
     model: process.env.GEMINI_MODEL,
   },
+
+  redis: {
+    url: process.env.REDIS_URL || null,
+    ttlSeconds: Number(process.env.CHAT_HISTORY_CACHE_TTL_SECONDS) || 60 * 60,
+    maxMessages: Number(process.env.CHAT_HISTORY_CACHE_MAX_MESSAGES) || 200,
+    inMemoryMaxChats:
+      Number(process.env.CHAT_HISTORY_IN_MEMORY_MAX_CHATS) || 200,
+  },
 }

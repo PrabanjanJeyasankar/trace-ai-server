@@ -39,7 +39,6 @@ const newsArticleSchema = new mongoose.Schema(
   { timestamps: true }
 )
 
-newsArticleSchema.index({ url: 1 })
 newsArticleSchema.index({ publishedAt: -1 })
 newsArticleSchema.index({ source: 1 })
 

@@ -27,12 +27,19 @@ services:
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
       OLLAMA_MODEL: ${OLLAMA_MODEL}
 
+      REDIS_URL: ${DOCKER_REDIS_URL:-redis://redis:6379}
+      CHAT_HISTORY_CACHE_TTL_SECONDS: ${CHAT_HISTORY_CACHE_TTL_SECONDS:-3600}
+      CHAT_HISTORY_CACHE_MAX_MESSAGES: ${CHAT_HISTORY_CACHE_MAX_MESSAGES:-200}
+      CHAT_HISTORY_IN_MEMORY_MAX_CHATS: ${CHAT_HISTORY_IN_MEMORY_MAX_CHATS:-200}
+
       CORS_ORIGIN: ${CORS_ORIGIN}
       LOG_LEVEL: ${LOG_LEVEL}
     depends_on:
       mongo:
         condition: service_started
       qdrant:
+        condition: service_started
+      redis:
         condition: service_started
     networks:
       - ai-network
@@ -45,6 +52,18 @@ services:
       - mongo_data:/data/db
     ports:
       - '27017:27017'
+    networks:
+      - ai-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-cache
+    restart: always
+    command: ['redis-server', '--appendonly', 'no']
+    volumes:
+      - redis_data:/data
+    ports:
+      - '6379:6379'
     networks:
       - ai-network
 
@@ -64,4 +83,5 @@ networks:
 
 volumes:
   mongo_data:
+  redis_data:
   qdrant_storage:

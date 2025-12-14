@@ -3,12 +3,12 @@ const NewsService = require('../services/embeddings/news.service')
 const { successResponse } = require('../utils/response')
 const logger = require('../utils/logger')
 
-const ingestNews = async (req, res) => {
+const ingestNews = async (request, response) => {
   logger.info('Starting news ingestion...')
 
   const results = await NewsIngestService.ingestAll()
 
-  return successResponse(res, {
+  return successResponse(response, {
     message: 'News ingestion completed',
     data: {
       totalArticles: results.total,
@@ -24,18 +24,18 @@ const ingestNews = async (req, res) => {
   })
 }
 
-const searchNews = async (req, res) => {
-  const { query, limit } = req.query
+const searchNews = async (request, response) => {
+  const { query, limit } = request.query
 
   if (!query) {
-    return res.status(400).json({ error: 'Query parameter is required' })
+    return response.status(400).json({ error: 'Query parameter is required' })
   }
 
   const parsedLimit = limit ? parseInt(limit, 10) : undefined
 
   const results = await NewsService.searchNews(query, parsedLimit)
 
-  return successResponse(res, {
+  return successResponse(response, {
     message: 'News search completed',
     data: {
       query,

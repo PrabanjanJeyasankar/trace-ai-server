@@ -6,6 +6,7 @@ const chatService = require('./chat.service')
 const memoryService = require('./embeddings/memory.service')
 const NewsService = require('./embeddings/news.service')
 const logger = require('../utils/logger')
+const chatHistoryCache = require('../cache/chatHistoryCache')
 
 const getLatestVersionContent = (message) =>
   message.versions[message.currentVersionIndex].content
@@ -26,7 +27,6 @@ const createMessage = async ({ chatId, userId, content, mode }) => {
     chat = await Chat.findById(chatId)
     if (!chat) throw new ApiError(404, 'Chat not found')
 
-    // Update chat mode if provided (allows switching between modes)
     if (mode && mode !== chat.mode) {
       logger.info(`Switching chat ${chatId} from ${chat.mode} to ${mode}`)
       chat.mode = mode
@@ -34,7 +34,6 @@ const createMessage = async ({ chatId, userId, content, mode }) => {
     }
   }
 
-  // save user msg
   const userMessage = await Message.create({
     chatId,
     userId,
@@ -145,7 +144,6 @@ const createMessage = async ({ chatId, userId, content, mode }) => {
     isFirstMessage,
   })
 
-  // Prepare sources for news mode
   let messageSources = []
   if (chat.mode === 'news' && newsResults.length > 0) {
     messageSources = newsResults.map((result) => ({
@@ -168,6 +166,11 @@ const createMessage = async ({ chatId, userId, content, mode }) => {
     currentVersionIndex: 0,
     sources: messageSources,
   })
+
+  // Best-effort cache update for per-session (chatId) history
+  chatHistoryCache
+    .append(chatId.toString(), [userMessage, assistantMessage])
+    .catch(() => {})
 
   await memoryService.saveMessageVector({
     userId,
@@ -200,6 +203,9 @@ const editUserMessage = async ({ messageId, newContent }) => {
   message.versions.push({ content: newContent })
   message.currentVersionIndex = message.versions.length - 1
   await message.save()
+
+  // Message versions changed; invalidate cached history
+  chatHistoryCache.invalidate(message.chatId.toString()).catch(() => {})
 
   const chat = await Chat.findById(message.chatId)
   if (!chat) throw new ApiError(404, 'Chat not found')
@@ -237,30 +243,30 @@ const editUserMessage = async ({ messageId, newContent }) => {
           const { title, url, source, startLine, endLine, text } =
             result.payload
           return `
-SOURCE ${idx + 1}:
-Title: ${title}
-URL: ${url}
-Source: ${source}
-Lines: ${startLine}-${endLine}
-Content:
-${text}
----`
+              SOURCE ${idx + 1}:
+              Title: ${title}
+              URL: ${url}
+              Source: ${source}
+              Lines: ${startLine}-${endLine}
+              Content:
+              ${text}
+              ---`
         })
         .join('\n\n')
 
       newsContext = `
-You are answering based on news articles. Follow these rules strictly:
+              You are answering based on news articles. Follow these rules strictly:
 
-AVAILABLE SOURCES:
-${sourcesList}
+              AVAILABLE SOURCES:
+              ${sourcesList}
 
-CITATION RULES:
-1. Only state facts that are directly supported by the sources above.
-2. For each fact, add a citation at the end of the sentence: (found in: <Title>, lines X-Y)
-3. If a question cannot be answered from the sources, say "I don't have information about that in the available news sources."
-4. Do NOT mention Qdrant, embeddings, vector databases, or any internal system details.
-5. Be concise and accurate.
-`
+              CITATION RULES:
+              1. Only state facts that are directly supported by the sources above.
+              2. For each fact, add a citation at the end of the sentence: (found in: <Title>, lines X-Y)
+              3. If a question cannot be answered from the sources, say "I don't have information about that in the available news sources."
+              4. Do NOT mention Qdrant, embeddings, vector databases, or any internal system details.
+              5. Be concise and accurate.
+          `
     }
   }
 
@@ -335,7 +341,9 @@ const regenerateAssistantResponse = async ({ messageId }) => {
   const chat = await Chat.findById(userMessage.chatId)
   if (!chat) throw new ApiError(404, 'Chat not found')
 
-  // Backfill mode for older messages
+  // Assistant output will change; invalidate cached history
+  chatHistoryCache.invalidate(userMessage.chatId.toString()).catch(() => {})
+
   if (!userMessage.mode) {
     userMessage.mode = chat.mode || 'default'
     await userMessage.save()
@@ -450,12 +458,24 @@ const regenerateAssistantResponse = async ({ messageId }) => {
 }
 
 const getMessagesByChatId = async (chatId) => {
+  const cached = await chatHistoryCache.get(chatId.toString())
+  if (cached) {
+    return cached.map((message) => ({
+      ...message,
+      mode: message.mode || 'default',
+    }))
+  }
+
   const messages = await Message.find({ chatId }).sort({ createdAt: 1 }).lean()
 
-  return messages.map((message) => ({
+  const normalized = messages.map((message) => ({
     ...message,
     mode: message.mode || 'default',
   }))
+
+  chatHistoryCache.set(chatId.toString(), normalized).catch(() => {})
+
+  return normalized
 }
 
 module.exports = {
