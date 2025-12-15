@@ -87,7 +87,16 @@ async function initQdrantCollections() {
       }
     }
   } catch (error) {
-    logger.error(`Qdrant collection init failed: ${error.message}`)
+    const hostname = error?.cause?.hostname
+    const code = error?.cause?.code
+
+    if (code === 'ENOTFOUND' && hostname) {
+      logger.error(
+        `Qdrant collection init failed: cannot resolve host "${hostname}". Set QDRANT_URL to a reachable host (Render internal URL or Qdrant Cloud URL).`
+      )
+    } else {
+      logger.error(`Qdrant collection init failed: ${error.message}`)
+    }
     throw error
   }
 }

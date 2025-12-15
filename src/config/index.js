@@ -43,6 +43,11 @@ module.exports = {
       Number(process.env.CHAT_HISTORY_IN_MEMORY_MAX_CHATS) || 200,
   },
 
+  qdrant: {
+    url: process.env.QDRANT_URL || 'http://localhost:6333',
+    apiKey: process.env.QDRANT_API_KEY || null,
+  },
+
   rag: {
     rerankerUrl: process.env.RERANKER_URL || null,
   },

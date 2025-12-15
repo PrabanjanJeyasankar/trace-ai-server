@@ -5,11 +5,14 @@ const logger = require('../utils/logger')
 let client = null
 
 try {
-  client = new QdrantClient({
-    url: config.qdrant?.url || process.env.QDRANT_URL,
-  })
+  const qdrantOptions = { url: config.qdrant.url }
+  if (config.qdrant.apiKey) {
+    qdrantOptions.apiKey = config.qdrant.apiKey
+  }
 
-  logger.info(`Qdrant client initialized: ${process.env.QDRANT_URL}`)
+  client = new QdrantClient(qdrantOptions)
+
+  logger.info(`Qdrant client initialized: ${config.qdrant.url}`)
 } catch (error) {
   logger.error(`Failed to initialize Qdrant client: ${error.message}`)
   throw error

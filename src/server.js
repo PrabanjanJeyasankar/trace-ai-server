@@ -53,10 +53,22 @@ process.on('uncaughtException', (error) => {
   process.exit(1)
 })
 
+process.on('unhandledRejection', (error) => {
+  console.error('Unhandled rejection:', error)
+  process.exit(1)
+})
+
 const startServer = async () => {
-  await connectDB()
-  await initQdrantCollections()
-  await waitForReranker()
+  try {
+    await connectDB()
+    await initQdrantCollections()
+    await waitForReranker()
+  } catch (error) {
+    console.error(
+      `Startup failed: ${error?.message || error}. Check QDRANT_URL/QDRANT_API_KEY and any dependent services (Mongo, Qdrant, reranker).`
+    )
+    process.exit(1)
+  }
 
   CronService.startDailyNewsIngestion()
   CronService.startKeepAlive()
@@ -125,11 +137,6 @@ const startServer = async () => {
   })
 
   server.setTimeout(30000)
-
-  process.on('unhandledRejection', (error) => {
-    console.error('Unhandled rejection:', error)
-    server.close(() => process.exit(1))
-  })
 
   process.on('SIGTERM', () => {
     console.log('SIGTERM received. Shutting down')

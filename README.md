@@ -33,6 +33,7 @@ npm start
 - MONGO_URI: MongoDB connection string
 - JWT_SECRET: Secret for JWT signing
 - QDRANT_URL: URL for Qdrant vector database
+- QDRANT_API_KEY: API key for Qdrant (required for Qdrant Cloud)
 - AI_PROVIDER: AI provider service (e.g., openai, ollama)
 - OPENAI_API_KEY: API key for OpenAI (chat)
 - OPENAI_MODEL: Model name for OpenAI (chat)
