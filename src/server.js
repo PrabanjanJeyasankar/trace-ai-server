@@ -59,6 +59,7 @@ const startServer = async () => {
   await waitForReranker()
 
   CronService.startDailyNewsIngestion()
+  CronService.startKeepAlive()
 
   const server = http.createServer(app)
   const io = new Server(server, {
@@ -133,6 +134,7 @@ const startServer = async () => {
   process.on('SIGTERM', () => {
     console.log('SIGTERM received. Shutting down')
     CronService.stopDailyNewsIngestion()
+    CronService.stopKeepAlive()
     server.close(() => console.log('Process terminated'))
   })
 }
