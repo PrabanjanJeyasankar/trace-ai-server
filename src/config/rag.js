@@ -11,7 +11,7 @@ const MIN_RELEVANT_CHUNKS = 3
 const NOT_ENOUGH_INFO_MESSAGE =
   'The available sources are not relevant enough to answer accurately.'
 
-const ENABLE_RERANKING = false
+const ENABLE_RERANKING = true
 
 const NEWS_SEARCH_OVERFETCH_FACTOR = 4
 

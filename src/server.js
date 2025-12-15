@@ -1,4 +1,3 @@
-const axios = require('axios')
 const http = require('http')
 const { Server } = require('socket.io')
 const connectDB = require('./config/db')
@@ -7,46 +6,6 @@ const config = require('./config')
 const { initQdrantCollections } = require('./lib/qdrant.collections')
 const CronService = require('./services/cron.service')
 const { setupWebSocketHandlers } = require('./websocket/messageHandler')
-
-const waitForReranker = async () => {
-  const rerankerUrl = process.env.RERANKER_URL || config?.rag?.rerankerUrl
-
-  if (!rerankerUrl) {
-    return
-  }
-
-  const healthUrl = rerankerUrl.replace(/\/rerank$/, '/health')
-  const maxAttempts = 30
-  const delayMs = 2000
-
-  console.log(
-    `[reranker] Waiting for reranker service at ${healthUrl} before starting server...`
-  )
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      const res = await axios.get(healthUrl, { timeout: 2000 })
-
-      if (res.status === 200) {
-        console.log(
-          `[reranker] Reranker service is healthy (attempt ${attempt}/${maxAttempts}).`
-        )
-        return
-      }
-    } catch (error) {
-      console.log(
-        `[reranker] Not ready yet (attempt ${attempt}/${maxAttempts}): ${error.message}`
-      )
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, delayMs))
-  }
-
-  console.error(
-    '[reranker] Reranker service did not become healthy in time. Exiting.'
-  )
-  process.exit(1)
-}
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught exception:', error)
@@ -62,7 +21,6 @@ const startServer = async () => {
   try {
     await connectDB()
     await initQdrantCollections()
-    await waitForReranker()
   } catch (error) {
     console.error(
       `Startup failed: ${error?.message || error}. Check QDRANT_URL/QDRANT_API_KEY and any dependent services (Mongo, Qdrant, reranker).`
@@ -92,8 +50,7 @@ const startServer = async () => {
 
     const provider = process.env.AI_PROVIDER || 'hf'
     const activeModel = 'embeddings-only'
-    const rerankerUrl =
-      process.env.RERANKER_URL || config?.rag?.rerankerUrl || 'disabled'
+    const rerankerUrl = config?.rag?.rerankerUrl || 'disabled'
     const rerankingEnabled = ragConfig.ENABLE_RERANKING ? 'ENABLED' : 'DISABLED'
     const rerankingStatus = ragConfig.ENABLE_RERANKING ? '✓' : '✗'
 
