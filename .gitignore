@@ -57,3 +57,4 @@ agent.json
 *.agent
 
 /docs
+pdf-ingestion-service/ingestion_state.db

@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from r2 import list_pdf_objects, get_r2_client
 from state import DocumentStateStore
 from ingestion import IngestionDecisionEngine, IngestionDecision
+from fetch import PdfFetcher
 
 
 load_dotenv()
@@ -50,6 +51,7 @@ async def lifespan(app: FastAPI):
         ingest_count = 0
         skip_count = 0
         reingest_count = 0
+        download_candidates = []
         
         for doc in documents:
             decision, checksum = decision_engine.decide(doc)
@@ -57,6 +59,7 @@ async def lifespan(app: FastAPI):
             if decision == IngestionDecision.INGEST:
                 print(f"  INGEST   {doc.object_key}")
                 decision_engine.mark_ingested(doc, checksum)
+                download_candidates.append((doc.doc_id, doc.object_key))
                 ingest_count += 1
             elif decision == IngestionDecision.SKIP:
                 print(f"  SKIP     {doc.object_key} (etag unchanged)")
@@ -64,9 +67,26 @@ async def lifespan(app: FastAPI):
             elif decision == IngestionDecision.REINGEST:
                 print(f"  REINGEST {doc.object_key} (checksum changed)")
                 decision_engine.mark_ingested(doc, checksum)
+                download_candidates.append((doc.doc_id, doc.object_key))
                 reingest_count += 1
         
         print(f"\nSummary: {ingest_count} INGEST, {skip_count} SKIP, {reingest_count} REINGEST")
+        
+        if download_candidates:
+            print(f"\nDownloading {len(download_candidates)} PDFs with bounded concurrency (max 3)...")
+            fetcher = PdfFetcher(r2_client)
+            fetch_results = fetcher.fetch_pdfs(download_candidates)
+            
+            success_count = sum(1 for r in fetch_results if r.success)
+            failed_count = sum(1 for r in fetch_results if not r.success)
+            
+            print(f"Download complete: {success_count} succeeded, {failed_count} failed")
+            
+            for result in fetch_results:
+                if not result.success:
+                    print(f"  FAILED_DOWNLOAD: {result.doc_id} - {result.error}")
+        else:
+            print("\nNo PDFs to download (all skipped)")
     
     except Exception as e:
         print(f"Warning: Could not list R2 objects: {e}")
