@@ -55,3 +55,5 @@ tmp/
 agent.json
 *agent*
 *.agent
+
+/docs

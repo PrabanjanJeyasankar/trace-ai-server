@@ -117,6 +117,29 @@ services:
     networks:
       - ai-network
 
+  pdf-ingestion:
+    build:
+      context: ./pdf-ingestion-service
+    container_name: pdf-ingestion-service
+    restart: always
+    env_file:
+      - .env
+    environment:
+      PDF_INGESTION_PORT: ${PDF_INGESTION_PORT:-8003}
+    ports:
+      - '8003:8003'
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8003/health'')" || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - ai-network
+
 networks:
   ai-network:
 
