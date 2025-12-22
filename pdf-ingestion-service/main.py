@@ -9,6 +9,8 @@ from r2 import list_pdf_objects, get_r2_client
 from state import DocumentStateStore
 from ingestion import IngestionDecisionEngine, IngestionDecision
 from fetch import PdfFetcher
+from parsing import PdfParser
+from chunking import LegalChunker, MetadataEnricher
 
 
 load_dotenv()
@@ -52,6 +54,7 @@ async def lifespan(app: FastAPI):
         skip_count = 0
         reingest_count = 0
         download_candidates = []
+        documents_map = {doc.doc_id: doc for doc in documents}
         
         for doc in documents:
             decision, checksum = decision_engine.decide(doc)
@@ -82,9 +85,47 @@ async def lifespan(app: FastAPI):
             
             print(f"Download complete: {success_count} succeeded, {failed_count} failed")
             
+            failed_downloads = []
             for result in fetch_results:
                 if not result.success:
                     print(f"  FAILED_DOWNLOAD: {result.doc_id} - {result.error}")
+                    failed_downloads.append(result.doc_id)
+            
+            print(f"\nProcessing PDFs into chunks...")
+            parser = PdfParser()
+            chunker = LegalChunker()
+            enricher = MetadataEnricher()
+            
+            total_chunks = 0
+            parse_failures = 0
+            
+            for result in fetch_results:
+                if not result.success or result.doc_id in failed_downloads:
+                    continue
+                
+                doc_meta = documents_map.get(result.doc_id)
+                if not doc_meta:
+                    continue
+                
+                pages, failure_reason = parser.parse(result.doc_id, result.file_bytes)
+                
+                if failure_reason:
+                    print(f"  {failure_reason}: {result.doc_id}")
+                    parse_failures += 1
+                    continue
+                
+                raw_chunks = chunker.chunk_pages(pages)
+                text_chunks = enricher.enrich(
+                    raw_chunks,
+                    pages,
+                    domain=doc_meta.domain,
+                    doc_type="unknown"
+                )
+                
+                total_chunks += len(text_chunks)
+                print(f"  Processed {result.doc_id}: {len(pages)} pages → {len(text_chunks)} chunks")
+            
+            print(f"\nChunking complete: {total_chunks} chunks created, {parse_failures} parse failures")
         else:
             print("\nNo PDFs to download (all skipped)")
     
