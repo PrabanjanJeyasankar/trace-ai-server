@@ -5,7 +5,9 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 import uvicorn
 from dotenv import load_dotenv
-from r2 import list_pdf_objects
+from r2 import list_pdf_objects, get_r2_client
+from state import DocumentStateStore
+from ingestion import IngestionDecisionEngine, IngestionDecision
 
 
 load_dotenv()
@@ -39,13 +41,32 @@ async def lifespan(app: FastAPI):
             domains[doc.domain] = domains.get(doc.domain, 0) + 1
         
         print(f"Domains: {dict(sorted(domains.items()))}")
-     
-        print(f"\nAll documents:")
-        for doc in documents[:5]:
-            print(f"  - {doc.object_key} ({doc.size} bytes)")
         
-        if len(documents) > 5:
-            print(f"  ... and {len(documents) - 5} more")
+        r2_client = get_r2_client()
+        state_store = DocumentStateStore()
+        decision_engine = IngestionDecisionEngine(r2_client, state_store)
+        
+        print("\nProcessing decisions:")
+        ingest_count = 0
+        skip_count = 0
+        reingest_count = 0
+        
+        for doc in documents:
+            decision, checksum = decision_engine.decide(doc)
+            
+            if decision == IngestionDecision.INGEST:
+                print(f"  INGEST   {doc.object_key}")
+                decision_engine.mark_ingested(doc, checksum)
+                ingest_count += 1
+            elif decision == IngestionDecision.SKIP:
+                print(f"  SKIP     {doc.object_key} (etag unchanged)")
+                skip_count += 1
+            elif decision == IngestionDecision.REINGEST:
+                print(f"  REINGEST {doc.object_key} (checksum changed)")
+                decision_engine.mark_ingested(doc, checksum)
+                reingest_count += 1
+        
+        print(f"\nSummary: {ingest_count} INGEST, {skip_count} SKIP, {reingest_count} REINGEST")
     
     except Exception as e:
         print(f"Warning: Could not list R2 objects: {e}")

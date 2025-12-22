@@ -81,14 +81,12 @@ class R2Client:
     
     def normalize_etag(self, etag: str) -> str:
         return etag.strip('"')
+    
+    def download_pdf(self, object_key: str) -> bytes:
+        response = self.client.get_object(Bucket=self.bucket_name, Key=object_key)
+        return response["Body"].read()
 
-    def compute_checksum(self, object_key: str) -> str:
-        # Download the file and compute SHA-256
-        # This is a blocking operation and should be used only for metadata extraction
-        file_bytes = self.client.get_object(Bucket=self.bucket_name, Key=object_key)["Body"].read()
-        return "sha256:" + hashlib.sha256(file_bytes).hexdigest()
-
-    def build_pdf_document(self, obj: dict) -> PdfDocument:
+    def build_pdf_document(self, obj: dict, include_checksum: bool = False) -> PdfDocument:
         object_key = obj["Key"]
         file_name = self.extract_file_name(object_key)
         path = self.extract_path(object_key)
@@ -96,12 +94,15 @@ class R2Client:
         etag = self.normalize_etag(obj.get("ETag", ""))
         size = obj["Size"]
         last_modified = obj["LastModified"]
-        # Compute checksum as SHA-256 of file bytes
-        checksum = None
-        try:
-            checksum = self.compute_checksum(object_key)
-        except Exception:
-            checksum = "sha256:ERROR"
+        
+        checksum = ""
+        if include_checksum:
+            try:
+                file_bytes = self.download_pdf(object_key)
+                checksum = "sha256:" + hashlib.sha256(file_bytes).hexdigest()
+            except Exception:
+                checksum = "sha256:ERROR"
+        
         return PdfDocument(
             doc_id=object_key,
             object_key=object_key,
@@ -115,11 +116,11 @@ class R2Client:
             content_type=obj.get("ContentType"),
         )
 
-    def discover_pdfs(self) -> list[PdfDocument]:
+    def discover_pdfs(self, include_checksum: bool = False) -> list[PdfDocument]:
         all_objects = self.list_all_objects()
         pdf_objects = self.filter_pdf_objects(all_objects)
         
-        documents = [self.build_pdf_document(obj) for obj in pdf_objects]
+        documents = [self.build_pdf_document(obj, include_checksum) for obj in pdf_objects]
         
         return documents
 
@@ -149,3 +150,28 @@ def list_pdf_objects() -> list[PdfDocument]:
     )
     
     return client.discover_pdfs()
+
+
+def get_r2_client() -> R2Client:
+    account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
+    access_key_id = os.getenv("CLOUDFLARE_R2_ACCESS_KEY_ID")
+    secret_access_key = os.getenv("CLOUDFLARE_R2_SECRET_ACCESS_KEY")
+    bucket_name = os.getenv("CLOUDFLARE_R2_BUCKET_NAME")
+    
+    required_vars = {
+        "CLOUDFLARE_ACCOUNT_ID": account_id,
+        "CLOUDFLARE_R2_ACCESS_KEY_ID": access_key_id,
+        "CLOUDFLARE_R2_SECRET_ACCESS_KEY": secret_access_key,
+        "CLOUDFLARE_R2_BUCKET_NAME": bucket_name,
+    }
+    
+    missing = [k for k, v in required_vars.items() if not v]
+    if missing:
+        raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+    
+    return R2Client(
+        account_id=account_id,
+        access_key_id=access_key_id,
+        secret_access_key=secret_access_key,
+        bucket_name=bucket_name,
+    )
