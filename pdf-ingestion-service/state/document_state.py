@@ -75,3 +75,18 @@ class DocumentStateStore:
         )
         conn.commit()
         conn.close()
+    
+    def get_all_doc_ids(self) -> set[str]:
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT doc_id FROM document_state")
+        rows = cursor.fetchall()
+        conn.close()
+        return {row[0] for row in rows}
+    
+    def delete(self, doc_id: str):
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM document_state WHERE doc_id = ?", (doc_id,))
+        conn.commit()
+        conn.close()

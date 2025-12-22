@@ -39,4 +39,5 @@ class TextChunk:
     @staticmethod
     def generate_chunk_id(doc_id: str, page_number: int, chunk_index: int) -> str:
         data = f"{doc_id}|{page_number}|{chunk_index}"
-        return hashlib.sha256(data.encode()).hexdigest()[:16]
+        hash_hex = hashlib.sha256(data.encode()).hexdigest()
+        return f"{hash_hex[:8]}-{hash_hex[8:12]}-{hash_hex[12:16]}-{hash_hex[16:20]}-{hash_hex[20:32]}"

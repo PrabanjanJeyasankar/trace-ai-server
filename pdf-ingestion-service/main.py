@@ -11,6 +11,9 @@ from ingestion import IngestionDecisionEngine, IngestionDecision
 from fetch import PdfFetcher
 from parsing import PdfParser
 from chunking import LegalChunker, MetadataEnricher
+from embedding import LocalEmbedder
+from vectorstore import QdrantVectorStore
+from reconciliation import DeletionReconciler
 
 
 load_dotenv()
@@ -25,6 +28,7 @@ async def lifespan(app: FastAPI):
         "CLOUDFLARE_R2_ACCESS_KEY_ID",
         "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
         "CLOUDFLARE_R2_BUCKET_NAME",
+        "QDRANT_URL",
     ]
     
     missing_vars = [var for var in required_env_vars if not os.getenv(var)]
@@ -48,6 +52,19 @@ async def lifespan(app: FastAPI):
         r2_client = get_r2_client()
         state_store = DocumentStateStore()
         decision_engine = IngestionDecisionEngine(r2_client, state_store)
+        embedder = LocalEmbedder()
+        vector_store = QdrantVectorStore()
+        deletion_reconciler = DeletionReconciler(state_store, vector_store)
+        
+        current_doc_ids = {doc.doc_id for doc in documents}
+        deleted_count, deletion_error = deletion_reconciler.reconcile_deletions(current_doc_ids)
+        
+        if deletion_error:
+            print(f"Warning: Deletion reconciliation failed: {deletion_error}")
+        elif deleted_count > 0:
+            print(f"Deleted {deleted_count} stale document(s) from vector store")
+        else:
+            print("No deletions needed")
         
         print("\nProcessing decisions:")
         ingest_count = 0
@@ -98,6 +115,7 @@ async def lifespan(app: FastAPI):
             
             total_chunks = 0
             parse_failures = 0
+            all_text_chunks = []
             
             for result in fetch_results:
                 if not result.success or result.doc_id in failed_downloads:
@@ -122,10 +140,54 @@ async def lifespan(app: FastAPI):
                     doc_type="unknown"
                 )
                 
+                all_text_chunks.extend(text_chunks)
                 total_chunks += len(text_chunks)
                 print(f"  Processed {result.doc_id}: {len(pages)} pages → {len(text_chunks)} chunks")
             
             print(f"\nChunking complete: {total_chunks} chunks created, {parse_failures} parse failures")
+            
+            if all_text_chunks:
+                print(f"\nGenerating embeddings for {len(all_text_chunks)} chunks...")
+                chunk_texts = [chunk.text for chunk in all_text_chunks]
+                embedding_results = embedder.embed_batch(chunk_texts)
+                
+                embedding_success = sum(1 for _, vec in embedding_results if vec is not None)
+                embedding_failures = len(embedding_results) - embedding_success
+                
+                print(f"Embedding complete: {embedding_success} succeeded, {embedding_failures} failed")
+                
+                chunk_data = []
+                for chunk, (idx, vector) in zip(all_text_chunks, embedding_results):
+                    if vector is None:
+                        print(f"  FAILED_EMBEDDING: {chunk.chunk_id}")
+                        continue
+                    
+                    payload = {
+                        "doc_id": chunk.doc_id,
+                        "page_number": chunk.page_number,
+                        "page_label": chunk.page_label,
+                        "chunk_index": chunk.chunk_index,
+                        "text": chunk.text,
+                        "doc_type": chunk.doc_type,
+                        "domain": chunk.domain,
+                        "source": chunk.source,
+                        "source_system": chunk.source_system,
+                    }
+                    
+                    chunk_data.append({
+                        "chunk_id": chunk.chunk_id,
+                        "vector": vector,
+                        "payload": payload
+                    })
+                
+                if chunk_data:
+                    print(f"\nUpserting {len(chunk_data)} chunks to Qdrant...")
+                    upsert_success, upsert_failures = vector_store.upsert_chunks(chunk_data)
+                    print(f"Upsert complete: {upsert_success} succeeded, {upsert_failures} failed")
+                else:
+                    print("\nNo chunks to upsert (all embeddings failed)")
+            else:
+                print("\nNo chunks to embed (all parsing/chunking failed)")
         else:
             print("\nNo PDFs to download (all skipped)")
     
