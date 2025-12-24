@@ -5,7 +5,10 @@ const { processLLM, processLLMStreaming } = require('./llm.service')
 const chatService = require('./chat.service')
 const memoryService = require('./embeddings/memory.service')
 const chatHistoryCache = require('../cache/chatHistoryCache')
-const { runNewsRagPipeline } = require('../rag/pipeline/ragPipeline')
+const {
+  runNewsRagPipeline,
+  runLegalRagPipeline,
+} = require('../rag/pipeline/ragPipeline')
 const { createProgressData } = require('../utils/progressMessages')
 const { generateChainOfThoughts } = require('./chainOfThoughts.service')
 const logger = require('../utils/logger')
@@ -61,6 +64,33 @@ ${sourcesList}
 `
 }
 
+const buildLegalContext = (legalResults) => {
+  if (legalResults.length === 0) return ''
+
+  const sourcesList = legalResults
+    .map((result, idx) => {
+      const { doc_id, chunk_index, text } = result.payload
+      return `
+LEGAL SOURCE ${idx + 1}:
+Document ID: ${doc_id}
+Chunk: ${chunk_index}
+Content:
+${text}
+---`
+    })
+    .join('\n\n')
+
+  return `
+You must answer strictly using the provided legal documents.
+If the answer is not fully supported by the legal context, say you don't have enough information.
+Do not add external knowledge or legal opinions beyond what's in the documents.
+Always cite the Document ID and Chunk number when referencing information.
+
+LEGAL CONTEXT:
+${sourcesList}
+`
+}
+
 const buildMessageSources = (newsResults) => {
   return newsResults.map((result) => ({
     title: result.payload.title,
@@ -71,6 +101,28 @@ const buildMessageSources = (newsResults) => {
     similarity: result.rerankScore ?? 0,
     finalScore: result.rerankScore ?? 0,
   }))
+}
+
+const buildLegalMessageSources = (legalResults) => {
+  return legalResults.map((result) => {
+    const baseUrl = result.payload.pdf_url || ''
+    const pageNumber = result.payload.page_number
+    
+    // Append #page=N to the URL for direct page navigation
+    const pdfUrlWithPage = baseUrl && pageNumber 
+      ? `${baseUrl}#page=${pageNumber}` 
+      : baseUrl
+    
+    return {
+      doc_id: result.payload.doc_id,
+      chunk_index: result.payload.chunk_index,
+      text: result.payload.text,
+      page_number: pageNumber,
+      pdf_url: pdfUrlWithPage,
+      similarity: result.rerankScore ?? 0,
+      finalScore: result.rerankScore ?? 0,
+    }
+  })
 }
 
 const createMessage = async ({
@@ -140,7 +192,7 @@ const createMessage = async ({
 
     let memory = []
 
-    if (!isFirstMessage && chat.mode !== 'news') {
+    if (!isFirstMessage && chat.mode !== 'news' && chat.mode !== 'law') {
       emitProgress(onProgress, 'memory_recall', 'searching')
 
       logger.info(
@@ -170,6 +222,8 @@ const createMessage = async ({
 
     let newsResults = []
     let newsAbortMessage = null
+    let legalResults = []
+    let legalAbortMessage = null
     let chainOfThoughts = null
 
     if (chat.mode === 'news') {
@@ -218,11 +272,37 @@ const createMessage = async ({
       }
     }
 
+    if (chat.mode === 'law') {
+      emitProgress(onProgress, 'rag_pipeline', 'starting', {
+        source: 'legal documents',
+      })
+
+      const ragResult = await runLegalRagPipeline({
+        query: content,
+        onProgress: (stage, data) => emitProgress(onProgress, stage, data),
+      })
+
+      if (!ragResult.ok) {
+        emitProgress(onProgress, 'rag_pipeline', 'insufficient_data')
+        legalAbortMessage = ragResult.message
+      } else {
+        emitProgress(onProgress, 'rag_pipeline', 'completed', {
+          count: ragResult.chunks?.length || 0,
+        })
+        legalResults = ragResult.chunks
+      }
+    }
+
     const memoryInstructions = buildMemoryInstructions(memory)
     const newsContext = buildNewsContext(newsResults)
+    const legalContext = buildLegalContext(legalResults)
 
     const systemContent = (
-      chat.mode === 'news' ? [newsContext] : [memoryInstructions, newsContext]
+      chat.mode === 'news'
+        ? [newsContext]
+        : chat.mode === 'law'
+        ? [legalContext]
+        : [memoryInstructions, newsContext]
     )
       .filter((s) => s.trim())
       .join('\n\n')
@@ -232,6 +312,8 @@ const createMessage = async ({
 
     if (chat.mode === 'news' && newsAbortMessage) {
       assistantReply = newsAbortMessage
+    } else if (chat.mode === 'law' && legalAbortMessage) {
+      assistantReply = legalAbortMessage
     } else {
       const llmMessages = [
         ...(systemContent ? [{ role: 'system', content: systemContent }] : []),
@@ -344,6 +426,8 @@ const createMessage = async ({
     const messageSources =
       chat.mode === 'news' && newsResults.length > 0
         ? buildMessageSources(newsResults)
+        : chat.mode === 'law' && legalResults.length > 0
+        ? buildLegalMessageSources(legalResults)
         : []
 
     emitProgress(onProgress, 'assistant_message', 'creating')

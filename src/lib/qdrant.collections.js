@@ -3,6 +3,7 @@ const logger = require('../utils/logger')
 
 const MESSAGE_COLLECTION = 'messages_memory'
 const NEWS_COLLECTION = 'news_articles'
+const LEGAL_COLLECTION = 'legal_documents'
 const VECTOR_DIM = 384
 
 async function initQdrantCollections() {
@@ -109,5 +110,6 @@ async function initQdrantCollections() {
 module.exports = {
   MESSAGE_COLLECTION,
   NEWS_COLLECTION,
+  LEGAL_COLLECTION,
   initQdrantCollections,
 }

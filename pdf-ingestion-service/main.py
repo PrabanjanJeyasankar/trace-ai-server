@@ -28,6 +28,7 @@ async def lifespan(app: FastAPI):
         "CLOUDFLARE_R2_ACCESS_KEY_ID",
         "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
         "CLOUDFLARE_R2_BUCKET_NAME",
+        "CLOUDFLARE_R2_PUBLIC_DOMAIN",
         "QDRANT_URL",
     ]
     
@@ -162,6 +163,9 @@ async def lifespan(app: FastAPI):
                         print(f"  FAILED_EMBEDDING: {chunk.chunk_id}")
                         continue
                     
+                    r2_public_domain = os.getenv("CLOUDFLARE_R2_PUBLIC_DOMAIN", "")
+                    pdf_url = f"{r2_public_domain}/{chunk.doc_id}" if r2_public_domain else ""
+                    
                     payload = {
                         "doc_id": chunk.doc_id,
                         "page_number": chunk.page_number,
@@ -172,6 +176,7 @@ async def lifespan(app: FastAPI):
                         "domain": chunk.domain,
                         "source": chunk.source,
                         "source_system": chunk.source_system,
+                        "pdf_url": pdf_url,
                     }
                     
                     chunk_data.append({

@@ -1,4 +1,5 @@
 const { hybridRetrieve } = require('../retrieval/hybridRetriever')
+const { legalHybridRetrieve } = require('../retrieval/legalHybridRetriever')
 const { rerankResults } = require('../reranking/rerankResults')
 const { filterRelevant } = require('../filtering/relevanceFilter')
 const {
@@ -46,4 +47,38 @@ const runNewsRagPipeline = async ({ query, onProgress }) => {
   return { ok: true, chunks: filtered.slice(0, NEWS_TOP_K) }
 }
 
-module.exports = { runNewsRagPipeline, normalizeQuery }
+const runLegalRagPipeline = async ({ query, onProgress }) => {
+  const normalizedQuery = normalizeQuery(query)
+
+  if (onProgress) {
+    onProgress('rag_pipeline', 'retrieving', { source: 'legal documents' })
+  }
+
+  const candidates = await legalHybridRetrieve(normalizedQuery)
+
+  if (onProgress) {
+    onProgress('rag_pipeline', 'reranking', { count: candidates.length })
+  }
+
+  const reranked = await rerankResults(normalizedQuery, candidates)
+
+  if (onProgress) {
+    onProgress('rag_pipeline', 'filtering')
+  }
+
+  const { filtered, isEnough } = filterRelevant(reranked)
+
+  if (!isEnough) {
+    return {
+      ok: false,
+      message:
+        NOT_ENOUGH_INFO_MESSAGE ||
+        `The available legal sources are not relevant enough to answer accurately. (need at least ${MIN_RELEVANT_CHUNKS} relevant chunks)`,
+      chunks: [],
+    }
+  }
+
+  return { ok: true, chunks: filtered.slice(0, NEWS_TOP_K) }
+}
+
+module.exports = { runNewsRagPipeline, runLegalRagPipeline, normalizeQuery }

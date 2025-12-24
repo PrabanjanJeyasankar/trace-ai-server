@@ -2,15 +2,25 @@ const mongoose = require('mongoose')
 
 const sourceSchema = new mongoose.Schema(
   {
-    title: { type: String, required: true },
-    url: { type: String, required: true },
-    source: { type: String, required: true },
-    lines: { type: String, required: true },
-    publishedAt: { type: String, required: true },
+    // News source fields
+    title: { type: String },
+    url: { type: String },
+    source: { type: String },
+    lines: { type: String },
+    publishedAt: { type: String },
+    
+    // Legal source fields
+    doc_id: { type: String },
+    chunk_index: { type: Number },
+    text: { type: String },
+    page_number: { type: Number },
+    pdf_url: { type: String },
+    
+    // Common fields
     similarity: { type: Number, required: true },
     finalScore: { type: Number, required: true },
   },
-  { _id: false }
+  { _id: false, strict: false }
 )
 
 const messageVersionSchema = new mongoose.Schema(
@@ -66,7 +76,7 @@ const messageSchema = new mongoose.Schema(
 
     mode: {
       type: String,
-      enum: ['default', 'news'],
+      enum: ['default', 'news', 'law'],
       default: 'default',
     },
 
