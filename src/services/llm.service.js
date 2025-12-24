@@ -1,6 +1,10 @@
 const { ChatOpenAI } = require('@langchain/openai')
 const { ChatOllama } = require('@langchain/ollama')
-const { HumanMessage, AIMessage } = require('@langchain/core/messages')
+const {
+  HumanMessage,
+  AIMessage,
+  SystemMessage,
+} = require('@langchain/core/messages')
 const providers = require('../config/providers')
 const config = require('../config')
 const { ApiError } = require('../utils/ApiError')
@@ -36,23 +40,41 @@ const validateLLMInput = (messages) => {
   }
 }
 
-const createLangChainModel = () => {
+const createLangChainModel = (options = {}) => {
   const { name, model, baseUrl, apiKey } = resolveProvider()
+  const { structuredOutput = false, schema = null } = options
 
   if (name === 'ollama') {
-    return new ChatOllama({
+    const ollamaModel = new ChatOllama({
       model,
       baseUrl: baseUrl.replace(/\/$/, ''),
-      temperature: 0.7,
+      temperature: 0.3,
+      format: structuredOutput ? 'json' : undefined,
+    })
+
+    if (structuredOutput && schema) {
+      return ollamaModel.bind({
+        response_format: { type: 'json_object' },
+      })
+    }
+
+    return ollamaModel
+  }
+
+  const openaiModel = new ChatOpenAI({
+    modelName: model,
+    openAIApiKey: apiKey,
+    temperature: 0.3,
+    streaming: true,
+  })
+
+  if (structuredOutput && schema) {
+    return openaiModel.withStructuredOutput(schema, {
+      method: 'jsonMode',
     })
   }
 
-  return new ChatOpenAI({
-    modelName: model,
-    openAIApiKey: apiKey,
-    temperature: 0.7,
-    streaming: true,
-  })
+  return openaiModel
 }
 
 const convertMessagesToLangChain = (messages) => {
@@ -62,7 +84,9 @@ const convertMessagesToLangChain = (messages) => {
     } else if (msg.role === 'assistant') {
       return new AIMessage(msg.content)
     }
-    // Handle system messages if needed
+    if (msg.role === 'system') {
+      return new SystemMessage(msg.content)
+    }
     return new HumanMessage(msg.content)
   })
 }
@@ -79,6 +103,16 @@ const processLLMStreaming = async ({
 
     const model = createLangChainModel()
     const langChainMessages = convertMessagesToLangChain(messages)
+
+    // console.log(`[LLM] LangChain messages count:`, langChainMessages.length)
+    // console.log(
+    //   `[LLM] First message type:`,
+    //   langChainMessages[0]?.constructor?.name
+    // )
+    // console.log(
+    //   `[LLM] First message preview:`,
+    //   langChainMessages[0]?.content?.substring(0, 300)
+    // )
 
     let assistantReply = ''
     let chunkCount = 0
@@ -111,15 +145,27 @@ const processLLMStreaming = async ({
     }
 
     logger.info(`[Streaming LLM] Completed streaming with ${chunkCount} chunks`)
+    // console.log(`[LLM Response Preview]:`, assistantReply.substring(0, 500))
+    // console.log(
+    //   `[LLM Response] Has [1] citations:`,
+    //   assistantReply.includes('[1]')
+    // )
+    // console.log(
+    //   `[LLM Response] Has [2] citations:`,
+    //   assistantReply.includes('[2]')
+    // )
 
-    // Generate title if it's the first message
     let autoTitle = null
     if (isFirstMessage) {
       try {
-        const titleMessages = generateTitlePrompt(messages[0].content)
+        const lastUserMessage =
+          [...messages].reverse().find((m) => m.role === 'user') ||
+          messages[messages.length - 1]
+        const titleMessages = generateTitlePrompt(
+          lastUserMessage?.content || ''
+        )
         const titleLangChainMessages = convertMessagesToLangChain(titleMessages)
 
-        // For title generation, we don't need streaming
         const titleModel = createLangChainModel()
         const titleResponse = await titleModel.invoke(titleLangChainMessages)
         const raw = titleResponse.content || ''
@@ -134,7 +180,6 @@ const processLLMStreaming = async ({
       }
     }
 
-    // Emit completion
     if (onComplete && typeof onComplete === 'function') {
       onComplete({
         type: 'complete',
@@ -165,11 +210,64 @@ const processLLMStreaming = async ({
   }
 }
 
-/**
- * Generates a prompt for creating a concise title from user message
- * @param {string} message - The user's original message
- * @returns {Array} Array of message objects for title generation
- */
+const processLLMWithStructuredOutput = async ({
+  messages,
+  schema,
+  onComplete,
+  onError,
+}) => {
+  try {
+    validateLLMInput(messages)
+
+    const model = createLangChainModel({
+      structuredOutput: true,
+      schema,
+    })
+    const langChainMessages = convertMessagesToLangChain(messages)
+
+    logger.info(
+      `[Structured LLM] Starting structured output with ${messages.length} messages`
+    )
+
+    const response = await model.invoke(langChainMessages)
+
+    let structuredData
+    if (typeof response === 'string') {
+      structuredData = JSON.parse(response)
+    } else {
+      structuredData = response
+    }
+
+    logger.info(`[Structured LLM] Completed with structured data`)
+
+    if (onComplete && typeof onComplete === 'function') {
+      onComplete({
+        type: 'complete',
+        structuredData,
+        timestamp: new Date().toISOString(),
+      })
+    }
+
+    return {
+      structuredData,
+    }
+  } catch (error) {
+    logger.error(
+      `[Structured LLM] Error during structured output: ${error.message}`
+    )
+
+    if (onError && typeof onError === 'function') {
+      onError({
+        type: 'error',
+        error: error.message,
+        timestamp: new Date().toISOString(),
+      })
+    }
+
+    throw error
+  }
+}
+
 const generateTitlePrompt = (message) => [
   {
     role: 'user',
@@ -191,7 +289,6 @@ const processLLM = async ({ messages, isFirstMessage }) => {
       messages,
       isFirstMessage,
       onChunk: (data) => {
-        // Just accumulate chunks for non-streaming compatibility
         result.assistantReply = data.fullContent
       },
       onComplete: (data) => {
@@ -211,6 +308,7 @@ const processLLM = async ({ messages, isFirstMessage }) => {
 module.exports = {
   processLLM,
   processLLMStreaming,
+  processLLMWithStructuredOutput,
   createLangChainModel,
   convertMessagesToLangChain,
   // Utility functions (shared)

@@ -1,13 +1,17 @@
 const NEWS_TOP_K = 5
 
-const VECTOR_TOP_K = 8
-const KEYWORD_TOP_K = 8
-const HYBRID_CANDIDATES = 10
+const VECTOR_TOP_K = 12
+const KEYWORD_TOP_K = 12
+const HYBRID_CANDIDATES = 15
 
 const RRF_K = 60
 
 const RERANK_MIN_SCORE = 0.35
 const MIN_RELEVANT_CHUNKS = 3
+
+const LAW_RERANK_MIN_SCORE = 0.15
+const LAW_MIN_RELEVANT_CHUNKS = 1
+
 const NOT_ENOUGH_INFO_MESSAGE =
   'The available sources are not relevant enough to answer accurately.'
 
@@ -35,6 +39,8 @@ module.exports = {
   RRF_K,
   RERANK_MIN_SCORE,
   MIN_RELEVANT_CHUNKS,
+  LAW_RERANK_MIN_SCORE,
+  LAW_MIN_RELEVANT_CHUNKS,
   NOT_ENOUGH_INFO_MESSAGE,
   ENABLE_RERANKING,
   NEWS_SEARCH_OVERFETCH_FACTOR,

@@ -8,11 +8,14 @@ WORKDIR /app
 
 
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
+# Development: Install nodemon globally
+RUN npm install -g nodemon
 
 COPY . .
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+# Use nodemon in development for auto-reload
+CMD ["npm", "run", "dev"]

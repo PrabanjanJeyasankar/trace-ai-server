@@ -5,6 +5,7 @@ const { filterRelevant } = require('../filtering/relevanceFilter')
 const {
   NEWS_TOP_K,
   MIN_RELEVANT_CHUNKS,
+  LAW_MIN_RELEVANT_CHUNKS,
   NOT_ENOUGH_INFO_MESSAGE,
 } = require('../../config/rag')
 
@@ -32,7 +33,7 @@ const runNewsRagPipeline = async ({ query, onProgress }) => {
     onProgress('rag_pipeline', 'filtering')
   }
 
-  const { filtered, isEnough } = filterRelevant(reranked)
+  const { filtered, isEnough } = filterRelevant(reranked, { mode: 'news' })
 
   if (!isEnough) {
     return {
@@ -66,14 +67,14 @@ const runLegalRagPipeline = async ({ query, onProgress }) => {
     onProgress('rag_pipeline', 'filtering')
   }
 
-  const { filtered, isEnough } = filterRelevant(reranked)
+  const { filtered, isEnough } = filterRelevant(reranked, { mode: 'law' })
 
   if (!isEnough) {
     return {
       ok: false,
       message:
         NOT_ENOUGH_INFO_MESSAGE ||
-        `The available legal sources are not relevant enough to answer accurately. (need at least ${MIN_RELEVANT_CHUNKS} relevant chunks)`,
+        `The available legal sources are not relevant enough to answer accurately. (need at least ${LAW_MIN_RELEVANT_CHUNKS} relevant chunks)`,
       chunks: [],
     }
   }

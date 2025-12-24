@@ -4,7 +4,12 @@ const EmbeddingService = require('../../services/embeddings/embedding.service')
 const { VECTOR_TOP_K } = require('../../config/rag')
 
 const makeLegalChunkKey = (payload) => {
-  return `${payload.doc_id}#${payload.chunk_index}`
+  const docId = payload?.doc_id || 'unknown-doc'
+  const pageNumber =
+    typeof payload?.page_number === 'number' ? payload.page_number : 'unknown-page'
+  const chunkIndex =
+    typeof payload?.chunk_index === 'number' ? payload.chunk_index : 'unknown-chunk'
+  return `${docId}#p${pageNumber}#c${chunkIndex}`
 }
 
 const legalVectorSearch = async (query, topK = VECTOR_TOP_K) => {

@@ -48,10 +48,10 @@ const PROGRESS_MESSAGES = {
 
   rag_pipeline: {
     starting: {
-      message: 'Scanning headlines...',
+      message: 'Searching documents...',
     },
     retrieving: {
-      message: 'Searching news articles...',
+      message: 'Searching relevant documents...',
     },
     ranking: {
       message: 'Matching your request...',
@@ -72,7 +72,7 @@ const PROGRESS_MESSAGES = {
 
   llm_generation: {
     generating: {
-      message: 'Scanning latest headlines...',
+      message: 'Preparing response...',
     },
     completed: {
       message: 'Response ready...',
