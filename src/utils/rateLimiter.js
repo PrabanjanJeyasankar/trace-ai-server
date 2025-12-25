@@ -37,46 +37,70 @@ const globalRateLimiter = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => req.ip,
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      message: 'Too many requests, please try again later.',
+      retryAfter: Math.ceil(60),
+    })
+  },
 })
 
 const signupLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 20,
+  keyGenerator: (req) => req.ip,
+  message: 'Too many signup attempts, please try again after an hour.',
 })
 
 const loginLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   max: 50,
-})
+  keyGenerator: (req) => req.ip,
+    message: 'Too many login attempts, please try again later.',
+  })
 
 const messageLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 120,
+  keyGenerator: (req) => req.ip,
+  message: 'Too many messages, please slow down.',
 })
 
 const regenerateLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 40,
+  keyGenerator: (req) => req.ip,
+  message: 'Too many regeneration requests, please wait.',
 })
 
 const searchLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 80,
+  keyGenerator: (req) => req.ip,
+  message: 'Too many search requests, please try again later.',
 })
 
 const chatCreateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 50,
+  keyGenerator: (req) => req.ip,
+  message: 'Too many chat creation requests, please try again later.',
 })
 
 const chatRenameLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 100,
+  keyGenerator: (req) => req.ip,
+  message: 'Too many rename requests, please try again later.',
 })
 
 const chatDeleteLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 30,
+  keyGenerator: (req) => req.ip,
+  message: 'Too many delete requests, please try again later.',
 })
 
 module.exports = {
