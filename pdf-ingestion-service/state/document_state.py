@@ -11,6 +11,7 @@ class DocumentState:
     etag: str
     checksum: str
     last_ingested_at: str
+    upsert_completed: bool = False
 
 
 class DocumentStateStore:
@@ -26,9 +27,17 @@ class DocumentStateStore:
                 doc_id TEXT PRIMARY KEY,
                 etag TEXT NOT NULL,
                 checksum TEXT NOT NULL,
-                last_ingested_at TEXT NOT NULL
+                last_ingested_at TEXT NOT NULL,
+                upsert_completed INTEGER DEFAULT 0
             )
         """)
+        
+        # Migration: add upsert_completed column if it doesn't exist
+        cursor.execute("PRAGMA table_info(document_state)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if "upsert_completed" not in columns:
+            cursor.execute("ALTER TABLE document_state ADD COLUMN upsert_completed INTEGER DEFAULT 0")
+        
         conn.commit()
         conn.close()
     
@@ -36,7 +45,7 @@ class DocumentStateStore:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT doc_id, etag, checksum, last_ingested_at FROM document_state WHERE doc_id = ?",
+            "SELECT doc_id, etag, checksum, last_ingested_at, upsert_completed FROM document_state WHERE doc_id = ?",
             (doc_id,)
         )
         row = cursor.fetchone()
@@ -47,22 +56,24 @@ class DocumentStateStore:
                 doc_id=row[0],
                 etag=row[1],
                 checksum=row[2],
-                last_ingested_at=row[3]
+                last_ingested_at=row[3],
+                upsert_completed=bool(row[4]) if len(row) > 4 else False
             )
         return None
     
-    def upsert(self, doc_id: str, etag: str, checksum: str):
+    def upsert(self, doc_id: str, etag: str, checksum: str, upsert_completed: bool = False):
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         now = datetime.utcnow().isoformat()
         cursor.execute("""
-            INSERT INTO document_state (doc_id, etag, checksum, last_ingested_at)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO document_state (doc_id, etag, checksum, last_ingested_at, upsert_completed)
+            VALUES (?, ?, ?, ?, ?)
             ON CONFLICT(doc_id) DO UPDATE SET
                 etag = excluded.etag,
                 checksum = excluded.checksum,
-                last_ingested_at = excluded.last_ingested_at
-        """, (doc_id, etag, checksum, now))
+                last_ingested_at = excluded.last_ingested_at,
+                upsert_completed = excluded.upsert_completed
+        """, (doc_id, etag, checksum, now, int(upsert_completed)))
         conn.commit()
         conn.close()
     
@@ -83,6 +94,17 @@ class DocumentStateStore:
         rows = cursor.fetchall()
         conn.close()
         return {row[0] for row in rows}
+    
+    def mark_upsert_complete(self, doc_id: str):
+        """Mark that a document's chunks have been successfully upserted to Qdrant."""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE document_state SET upsert_completed = 1 WHERE doc_id = ?",
+            (doc_id,)
+        )
+        conn.commit()
+        conn.close()
     
     def delete(self, doc_id: str):
         conn = sqlite3.connect(self.db_path)
