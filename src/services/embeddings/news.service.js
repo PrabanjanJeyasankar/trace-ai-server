@@ -1,7 +1,7 @@
 const { v4: uuidv4 } = require('uuid')
 const client = require('../../lib/qdrant.client')
 const { NEWS_COLLECTION } = require('../../lib/qdrant.collections')
-const EmbeddingService = require('./embedding.service')
+const { embedText } = require('./embeddingClient')
 const { getSourceScore } = require('../../config/newsSources')
 const NewsArticle = require('../../models/NewsArticle')
 const {
@@ -107,7 +107,7 @@ class NewsService {
 
     for (const chunk of chunks) {
       // STEP A1: embedding generation for the chunk text
-      const vector = await EmbeddingService.embedText(chunk.text)
+      const vector = await embedText(chunk.text)
 
       // STEP A2: prepare Qdrant upsert payload
       const point = {

@@ -1,6 +1,6 @@
 const qdrant = require('../../lib/qdrant.client')
 const { MESSAGE_COLLECTION } = require('../../lib/qdrant.collections')
-const EmbeddingService = require('./embedding.service')
+const { embedText } = require('./embeddingClient')
 const logger = require('../../utils/logger')
 const { ApiError } = require('../../utils/ApiError')
 const crypto = require('crypto')
@@ -28,7 +28,7 @@ class MemoryService {
     try {
       if (!content) throw new Error('No content provided')
 
-      const vector = await EmbeddingService.embedText(content)
+      const vector = await embedText(content)
 
       const payload = {
         messageId: String(messageId),
@@ -92,7 +92,7 @@ class MemoryService {
         `[Memory Search] userId type: ${typeof userId}, chatId type: ${typeof chatId}`
       )
 
-      const vector = await EmbeddingService.embedText(content)
+      const vector = await embedText(content)
       logger.info(
         `[Memory Search] Generated embedding vector with ${vector.length} dimensions`
       )

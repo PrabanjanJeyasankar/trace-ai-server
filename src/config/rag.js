@@ -6,20 +6,20 @@ const HYBRID_CANDIDATES = 15
 
 const RRF_K = 60
 
-const RERANK_MIN_SCORE = 0.55
-const MIN_RELEVANT_CHUNKS = 2
+const RERANK_MIN_SCORE = 0.45
+const MIN_RELEVANT_CHUNKS = 1
 
-const LAW_RERANK_MIN_SCORE = 0.50
-const LAW_MIN_RELEVANT_CHUNKS = 2
+const LAW_RERANK_MIN_SCORE = 0.4
+const LAW_MIN_RELEVANT_CHUNKS = 1
 
 const NOT_ENOUGH_INFO_MESSAGE =
-  'No sufficiently relevant sources found in the database to answer this question accurately. The available data does not match your query closely enough.'
+  'The available sources are not relevant enough to answer accurately.'
 
 const ENABLE_RERANKING = true
 
 const NEWS_SEARCH_OVERFETCH_FACTOR = 4
 
-const NEWS_MIN_SIMILARITY = 0.50
+const NEWS_MIN_SIMILARITY = 0.35
 
 const NEWS_SIMILARITY_WEIGHT = 0.7
 const NEWS_RECENCY_WEIGHT = 0.2
@@ -30,6 +30,9 @@ const CHUNK_MAX_CHARS = 800
 const CHUNK_OVERLAP_PARAGRAPHS = 1
 
 const RECENCY_DECAY_DAYS = 30
+
+const VECTOR_SIMILARITY_THRESHOLD = 0.5
+const LAW_VECTOR_SIMILARITY_THRESHOLD = 0.45
 
 module.exports = {
   NEWS_TOP_K,
@@ -48,6 +51,8 @@ module.exports = {
   NEWS_SIMILARITY_WEIGHT,
   NEWS_RECENCY_WEIGHT,
   NEWS_SOURCE_WEIGHT,
+  VECTOR_SIMILARITY_THRESHOLD,
+  LAW_VECTOR_SIMILARITY_THRESHOLD,
   NEWS_SECTION_WEIGHT,
   CHUNK_MAX_CHARS,
   CHUNK_OVERLAP_PARAGRAPHS,

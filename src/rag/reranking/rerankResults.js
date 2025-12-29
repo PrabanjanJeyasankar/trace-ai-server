@@ -2,6 +2,10 @@ const { rerank } = require('./crossEncoderClient')
 const { ENABLE_RERANKING } = require('../../config/rag')
 
 const rerankResults = async (query, items) => {
+  if (!items || items.length === 0) {
+    return []
+  }
+
   if (!ENABLE_RERANKING) {
     const enriched = items.map((item) => ({
       ...item,

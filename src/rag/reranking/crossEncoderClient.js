@@ -42,6 +42,10 @@ const initRpcClient = () => {
 const rerank = async ({ query, documents }) => {
   const url = config?.rag?.rerankerRpcUrl
 
+  if (!documents || documents.length === 0) {
+    return []
+  }
+
   if (!url) {
     logger.warn(
       `${COLOR.YELLOW}[reranker] RPC URL not configured, using neutral scores${COLOR.RESET}`

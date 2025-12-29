@@ -31,9 +31,6 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL}
 
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GEMINI_MODEL: ${GEMINI_MODEL}
-
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
       OLLAMA_MODEL: ${OLLAMA_MODEL}
 
@@ -45,6 +42,8 @@ services:
       RERANKER_RPC_URL: ${DOCKER_RERANKER_RPC_URL:-http://reranker:8000/rpc}
       ENABLE_RERANKING: ${ENABLE_RERANKING:-true}
 
+      EMBEDDING_RPC_URL: ${DOCKER_EMBEDDING_RPC_URL:-http://embedding:8001/rpc}
+
       CORS_ORIGIN: ${CORS_ORIGIN}
       LOG_LEVEL: ${LOG_LEVEL}
     depends_on:
@@ -55,6 +54,8 @@ services:
       redis:
         condition: service_started
       reranker:
+        condition: service_healthy
+      embedding:
         condition: service_healthy
     networks:
       - ai-network
@@ -117,10 +118,41 @@ services:
       retries: 12
     environment:
       RERANKER_MODEL: ${RERANKER_MODEL:-BAAI/bge-reranker-base}
-      OMP_NUM_THREADS: 4
-      MKL_NUM_THREADS: 4
+      # OMP_NUM_THREADS: Auto-detected from available CPU cores
     ports:
       - '8000:8000'
+    networks:
+      - ai-network
+
+  embedding:
+    build:
+      context: ./embedding-service
+    container_name: embedding-service
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 2G
+        reservations:
+          cpus: '2'
+          memory: 1G
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8001/health'')" || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    environment:
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      OUTPUT_DIM: ${OUTPUT_DIM:-384}
+      PORT: 8001
+      # OMP_NUM_THREADS: Auto-detected from available CPU cores
+    ports:
+      - '8001:8001'
     networks:
       - ai-network
 

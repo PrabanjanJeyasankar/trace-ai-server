@@ -1,5 +1,7 @@
 const { hybridRetrieve } = require('../retrieval/hybridRetriever')
-const { legalHybridRetrieve } = require('../retrieval/legalHybridRetriever')
+const {
+  multiQueryLegalRetrieve,
+} = require('../retrieval/multiQueryLegalRetriever')
 const { rerankResults } = require('../reranking/rerankResults')
 const { filterRelevant } = require('../filtering/relevanceFilter')
 const {
@@ -52,10 +54,13 @@ const runLegalRagPipeline = async ({ query, onProgress }) => {
   const normalizedQuery = normalizeQuery(query)
 
   if (onProgress) {
-    onProgress('rag_pipeline', 'retrieving', { source: 'legal documents' })
+    onProgress('rag_pipeline', 'retrieving', {
+      source: 'legal documents',
+      strategy: 'multi-query hybrid',
+    })
   }
 
-  const candidates = await legalHybridRetrieve(normalizedQuery)
+  const candidates = await multiQueryLegalRetrieve(normalizedQuery)
 
   if (onProgress) {
     onProgress('rag_pipeline', 'reranking', { count: candidates.length })
