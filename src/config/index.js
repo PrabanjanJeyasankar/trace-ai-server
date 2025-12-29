@@ -54,6 +54,8 @@ module.exports = {
   },
 
   rag: {
-    rerankerUrl: 'http://reranker:8000/rerank',
+    rerankerUrl: process.env.RERANKER_URL || 'http://reranker:8000/rerank',
+    rerankerRpcUrl: process.env.RERANKER_RPC_URL || null,
+    rerankerProtocol: (process.env.RERANKER_PROTOCOL || 'rest').toLowerCase(),
   },
 }

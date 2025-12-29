@@ -1,7 +1,7 @@
 const client = require('../../lib/qdrant.client')
 const { NEWS_COLLECTION } = require('../../lib/qdrant.collections')
 const EmbeddingService = require('../../services/embeddings/embedding.service')
-const { VECTOR_TOP_K } = require('../../config/rag')
+const { VECTOR_TOP_K, NEWS_MIN_SIMILARITY } = require('../../config/rag')
 
 const makeChunkKey = (payload) => {
   return `${payload.url}#${payload.chunkIndex}`
@@ -14,14 +14,17 @@ const vectorSearch = async (query, topK = VECTOR_TOP_K) => {
     vector: queryVector,
     limit: topK,
     with_payload: true,
+    score_threshold: NEWS_MIN_SIMILARITY,
   })
 
-  return (results || []).map((r) => ({
-    key: makeChunkKey(r.payload),
-    text: r.payload?.text || '',
-    payload: r.payload,
-    vectorScore: r.score,
-  }))
+  return (results || [])
+    .filter((r) => r.score >= NEWS_MIN_SIMILARITY)
+    .map((r) => ({
+      key: makeChunkKey(r.payload),
+      text: r.payload?.text || '',
+      payload: r.payload,
+      vectorScore: r.score,
+    }))
 }
 
 module.exports = { vectorSearch, makeChunkKey }

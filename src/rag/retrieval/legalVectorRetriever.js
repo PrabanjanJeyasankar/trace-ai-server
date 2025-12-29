@@ -1,7 +1,9 @@
 const client = require('../../lib/qdrant.client')
 const { LEGAL_COLLECTION } = require('../../lib/qdrant.collections')
 const EmbeddingService = require('../../services/embeddings/embedding.service')
-const { VECTOR_TOP_K } = require('../../config/rag')
+const { VECTOR_TOP_K, NEWS_MIN_SIMILARITY } = require('../../config/rag')
+
+const LAW_MIN_SIMILARITY = 0.45
 
 const makeLegalChunkKey = (payload) => {
   const docId = payload?.doc_id || 'unknown-doc'
@@ -19,14 +21,17 @@ const legalVectorSearch = async (query, topK = VECTOR_TOP_K) => {
     vector: queryVector,
     limit: topK,
     with_payload: true,
+    score_threshold: LAW_MIN_SIMILARITY,
   })
 
-  return (results || []).map((r) => ({
-    key: makeLegalChunkKey(r.payload),
-    text: r.payload?.text || '',
-    payload: r.payload,
-    vectorScore: r.score,
-  }))
+  return (results || [])
+    .filter((r) => r.score >= LAW_MIN_SIMILARITY)
+    .map((r) => ({
+      key: makeLegalChunkKey(r.payload),
+      text: r.payload?.text || '',
+      payload: r.payload,
+      vectorScore: r.score,
+    }))
 }
 
 module.exports = { legalVectorSearch, makeLegalChunkKey }

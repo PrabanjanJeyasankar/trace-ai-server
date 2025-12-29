@@ -1,7 +1,7 @@
 import math
 import os
 import time
-from typing import List
+from typing import List, Optional, Union
 import torch
 
 from fastapi import FastAPI
@@ -40,36 +40,44 @@ class RerankRequest(BaseModel):
     documents: List[str]
 
 
+class JsonRpcRequest(BaseModel):
+    jsonrpc: str
+    method: str
+    params: Optional[dict] = None
+    id: Optional[Union[int, str]] = None
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
-@app.post("/rerank")
-def rerank(req: RerankRequest):
+def run_rerank(query: str, documents: List[str]):
     start = time.time()
-    doc_count = len(req.documents)
-    
+    doc_count = len(documents)
+
     print(f"🔄 [RERANK START] Processing {doc_count} documents")
-    
+
     # Build pairs
     pair_start = time.time()
-    pairs = [[req.query, d] for d in req.documents]
+    pairs = [[query, d] for d in documents]
     pair_time = (time.time() - pair_start) * 1000
-    
+
     # Predict scores with optimized batch size and no conversion overhead
     predict_start = time.time()
     with torch.no_grad():
         raw_scores = model.predict(
-            pairs, 
+            pairs,
             batch_size=64,
             show_progress_bar=False,
             convert_to_numpy=True,
-            convert_to_tensor=False
+            convert_to_tensor=False,
         )
     predict_time = (time.time() - predict_start) * 1000
-    print(f"  ⏱️  Model prediction: {predict_time:.1f}ms ({doc_count} docs, {predict_time/doc_count:.1f}ms/doc)")
-    
+    print(
+        f"  ⏱️  Model prediction: {predict_time:.1f}ms ({doc_count} docs, {predict_time/doc_count:.1f}ms/doc)"
+    )
+
     # Apply sigmoid efficiently
     sigmoid_start = time.time()
     results = [
@@ -77,8 +85,46 @@ def rerank(req: RerankRequest):
         for i, score in enumerate(raw_scores)
     ]
     sigmoid_time = (time.time() - sigmoid_start) * 1000
-    
+
     total_time = (time.time() - start) * 1000
     print(f"✅ [RERANK COMPLETE] Total: {total_time:.1f}ms | docs={doc_count}")
-    
+
     return results
+
+
+@app.post("/rerank")
+def rerank(req: RerankRequest):
+    return run_rerank(req.query, req.documents)
+
+
+@app.post("/rpc")
+def rpc(req: JsonRpcRequest):
+    if req.jsonrpc != "2.0":
+        return {
+            "jsonrpc": "2.0",
+            "error": {"code": -32600, "message": "Invalid JSON-RPC version"},
+            "id": req.id,
+        }
+
+    if req.method != "rerank":
+        return {
+            "jsonrpc": "2.0",
+            "error": {"code": -32601, "message": "Method not found"},
+            "id": req.id,
+        }
+
+    params = req.params or {}
+    query = params.get("query")
+    documents = params.get("documents")
+
+    if not isinstance(query, str) or not isinstance(documents, list):
+        return {
+            "jsonrpc": "2.0",
+            "error": {"code": -32602, "message": "Invalid params"},
+            "id": req.id,
+        }
+
+    print("[RPC] rerank")
+    result = run_rerank(query, documents)
+
+    return {"jsonrpc": "2.0", "result": result, "id": req.id}

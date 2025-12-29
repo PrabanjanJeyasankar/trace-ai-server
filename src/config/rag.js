@@ -6,20 +6,20 @@ const HYBRID_CANDIDATES = 15
 
 const RRF_K = 60
 
-const RERANK_MIN_SCORE = 0.35
-const MIN_RELEVANT_CHUNKS = 3
+const RERANK_MIN_SCORE = 0.55
+const MIN_RELEVANT_CHUNKS = 2
 
-const LAW_RERANK_MIN_SCORE = 0.15
-const LAW_MIN_RELEVANT_CHUNKS = 1
+const LAW_RERANK_MIN_SCORE = 0.50
+const LAW_MIN_RELEVANT_CHUNKS = 2
 
 const NOT_ENOUGH_INFO_MESSAGE =
-  'The available sources are not relevant enough to answer accurately.'
+  'No sufficiently relevant sources found in the database to answer this question accurately. The available data does not match your query closely enough.'
 
 const ENABLE_RERANKING = true
 
 const NEWS_SEARCH_OVERFETCH_FACTOR = 4
 
-const NEWS_MIN_SIMILARITY = 0.35
+const NEWS_MIN_SIMILARITY = 0.50
 
 const NEWS_SIMILARITY_WEIGHT = 0.7
 const NEWS_RECENCY_WEIGHT = 0.2
