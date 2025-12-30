@@ -19,5 +19,8 @@ pypdf==4.0.1
 # Vector database
 qdrant-client==1.7.3
 
+# MongoDB for state tracking
+pymongo==4.10.1
+
 # Local embeddings
 sentence-transformers==2.3.1

@@ -161,8 +161,6 @@ services:
       context: ./pdf-ingestion-service
     container_name: pdf-ingestion-service
     restart: always
-    volumes:
-      - pdf_ingestion_state:/app/state
     env_file:
       - .env
     environment:
@@ -171,8 +169,9 @@ services:
       CLOUDFLARE_R2_ACCESS_KEY_ID: ${CLOUDFLARE_R2_ACCESS_KEY_ID}
       CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
       CLOUDFLARE_R2_BUCKET_NAME: ${CLOUDFLARE_R2_BUCKET_NAME}
+      CLOUDFLARE_R2_PUBLIC_DOMAIN: ${CLOUDFLARE_R2_PUBLIC_DOMAIN}
       QDRANT_URL: ${QDRANT_URL}
-      SQLITE_DB_PATH: ${SQLITE_DB_PATH:-/app/state/ingestion_state.db}
+      MONGO_URL: ${MONGO_URI}
     depends_on:
       qdrant:
         condition: service_started
@@ -197,4 +196,3 @@ volumes:
   mongo_data:
   redis_data:
   qdrant_storage:
-  pdf_ingestion_state:

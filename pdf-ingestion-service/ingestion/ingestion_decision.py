@@ -23,6 +23,11 @@ class IngestionDecisionEngine:
             checksum = self._compute_checksum(doc.object_key)
             return (IngestionDecision.INGEST, checksum)
         
+        # If upsert was never completed, force reingest even if etag matches
+        if not previous_state.upsert_completed:
+            checksum = self._compute_checksum(doc.object_key)
+            return (IngestionDecision.REINGEST, checksum)
+        
         if previous_state.etag == doc.etag:
             return (IngestionDecision.SKIP, None)
         

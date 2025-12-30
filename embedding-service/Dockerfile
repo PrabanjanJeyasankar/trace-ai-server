@@ -27,5 +27,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Expose port
 EXPOSE 8001
 
-# Run the service
-CMD ["python", "main.py"]
+# Run with uvicorn directly with proper timeouts
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001", "--timeout-keep-alive", "75", "--timeout-graceful-shutdown", "10"]
