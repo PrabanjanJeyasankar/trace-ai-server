@@ -3,6 +3,7 @@ const logger = require('../utils/logger')
 
 const MESSAGE_COLLECTION = 'messages_memory'
 const NEWS_COLLECTION = 'news_articles'
+const LEGAL_COLLECTION = 'legal_documents'
 const VECTOR_DIM = 384
 
 async function initQdrantCollections() {
@@ -86,6 +87,34 @@ async function initQdrantCollections() {
         logger.info('news_articles already exists with correct dimensions')
       }
     }
+
+    const hasLegal = existing.collections.some(
+      (c) => c.name === LEGAL_COLLECTION
+    )
+
+    if (!hasLegal) {
+      logger.info('Creating Qdrant collection: legal_documents')
+
+      await client.createCollection(LEGAL_COLLECTION, {
+        vectors: {
+          size: VECTOR_DIM,
+          distance: 'Cosine',
+        },
+      })
+
+      logger.info('legal_documents collection created')
+    } else {
+      const legalCollectionInfo = await client.getCollection(LEGAL_COLLECTION)
+      const legalDim = legalCollectionInfo.config?.params?.vectors?.size
+
+      if (legalDim !== VECTOR_DIM) {
+        logger.warn(
+          `legal_documents exists with dimension ${legalDim} (expected ${VECTOR_DIM}). Keyword warmup may work, but vector search may be unreliable.`
+        )
+      } else {
+        logger.info('legal_documents already exists with correct dimensions')
+      }
+    }
   } catch (error) {
     const hostname = error?.cause?.hostname
     const code = error?.cause?.code
@@ -109,5 +138,6 @@ async function initQdrantCollections() {
 module.exports = {
   MESSAGE_COLLECTION,
   NEWS_COLLECTION,
+  LEGAL_COLLECTION,
   initQdrantCollections,
 }

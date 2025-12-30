@@ -96,7 +96,7 @@ class NewsIngestService {
 
         const existingArticle = await NewsArticle.findOne({ url })
         if (existingArticle) {
-          logger.info(`Article already exists: ${title}`)
+          // logger.info(`Article already exists: ${title}`)
           continue
         }
 

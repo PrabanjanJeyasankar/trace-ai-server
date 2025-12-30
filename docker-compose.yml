@@ -5,6 +5,10 @@ services:
     restart: always
     ports:
       - '3000:3000'
+    volumes:
+      - ./src:/app/src:delegated
+      - ./package.json:/app/package.json:ro
+      - ./ragas-eval/datasets:/app/ragas-eval/datasets
     env_file:
       - .env
     environment:
@@ -19,13 +23,13 @@ services:
       ACCESS_TOKEN_EXPIRY: ${ACCESS_TOKEN_EXPIRY}
       REFRESH_TOKEN_EXPIRY: ${REFRESH_TOKEN_EXPIRY}
 
+      EVAL_API_KEY: ${EVAL_API_KEY}
+      EVAL_USER_ID: ${EVAL_USER_ID}
+
       AI_PROVIDER: ${AI_PROVIDER}
 
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL}
-
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GEMINI_MODEL: ${GEMINI_MODEL}
 
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}
       OLLAMA_MODEL: ${OLLAMA_MODEL}
@@ -35,8 +39,10 @@ services:
       CHAT_HISTORY_CACHE_MAX_MESSAGES: ${CHAT_HISTORY_CACHE_MAX_MESSAGES:-200}
       CHAT_HISTORY_IN_MEMORY_MAX_CHATS: ${CHAT_HISTORY_IN_MEMORY_MAX_CHATS:-200}
 
-      RERANKER_URL: ${DOCKER_RERANKER_URL:-http://reranker:8000/rerank}
+      RERANKER_RPC_URL: ${DOCKER_RERANKER_RPC_URL:-http://reranker:8000/rpc}
       ENABLE_RERANKING: ${ENABLE_RERANKING:-true}
+
+      EMBEDDING_RPC_URL: ${DOCKER_EMBEDDING_RPC_URL:-http://embedding:8001/rpc}
 
       CORS_ORIGIN: ${CORS_ORIGIN}
       LOG_LEVEL: ${LOG_LEVEL}
@@ -48,6 +54,8 @@ services:
       redis:
         condition: service_started
       reranker:
+        condition: service_healthy
+      embedding:
         condition: service_healthy
     networks:
       - ai-network
@@ -110,10 +118,74 @@ services:
       retries: 12
     environment:
       RERANKER_MODEL: ${RERANKER_MODEL:-BAAI/bge-reranker-base}
-      OMP_NUM_THREADS: 4
-      MKL_NUM_THREADS: 4
+      # OMP_NUM_THREADS: Auto-detected from available CPU cores
     ports:
       - '8000:8000'
+    networks:
+      - ai-network
+
+  embedding:
+    build:
+      context: ./embedding-service
+    container_name: embedding-service
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 2G
+        reservations:
+          cpus: '2'
+          memory: 1G
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8001/health'')" || exit 1',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    environment:
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      OUTPUT_DIM: ${OUTPUT_DIM:-384}
+      PORT: 8001
+      # OMP_NUM_THREADS: Auto-detected from available CPU cores
+    ports:
+      - '8001:8001'
+    networks:
+      - ai-network
+
+  pdf-ingestion:
+    build:
+      context: ./pdf-ingestion-service
+    container_name: pdf-ingestion-service
+    restart: always
+    env_file:
+      - .env
+    environment:
+      PDF_INGESTION_PORT: ${PDF_INGESTION_PORT:-8003}
+      CLOUDFLARE_ACCOUNT_ID: ${CLOUDFLARE_ACCOUNT_ID}
+      CLOUDFLARE_R2_ACCESS_KEY_ID: ${CLOUDFLARE_R2_ACCESS_KEY_ID}
+      CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${CLOUDFLARE_R2_SECRET_ACCESS_KEY}
+      CLOUDFLARE_R2_BUCKET_NAME: ${CLOUDFLARE_R2_BUCKET_NAME}
+      CLOUDFLARE_R2_PUBLIC_DOMAIN: ${CLOUDFLARE_R2_PUBLIC_DOMAIN}
+      QDRANT_URL: ${QDRANT_URL}
+      MONGO_URL: ${MONGO_URI}
+    depends_on:
+      qdrant:
+        condition: service_started
+    ports:
+      - '8003:8003'
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'python -c "import urllib.request; urllib.request.urlopen(''http://localhost:8003/health'')" || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - ai-network
 

@@ -15,8 +15,8 @@ module.exports = {
   auth: {
     jwtSecret: process.env.JWT_SECRET,
     jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
-    accessTokenExpiry: process.env.ACCESS_TOKEN_EXPIRY || '15m',
-    refreshTokenExpiry: process.env.REFRESH_TOKEN_EXPIRY || '7d',
+    accessTokenExpiry: process.env.ACCESS_TOKEN_EXPIRY || '30s',
+    refreshTokenExpiry: process.env.REFRESH_TOKEN_EXPIRY || '1m',
   },
 
   cors: {
@@ -54,6 +54,9 @@ module.exports = {
   },
 
   rag: {
-    rerankerUrl: 'http://reranker:8000/rerank',
+    rerankerUrl: process.env.RERANKER_URL || 'http://reranker:8000/rerank',
+    rerankerRpcUrl: process.env.RERANKER_RPC_URL || null,
+    rerankerProtocol: (process.env.RERANKER_PROTOCOL || 'rest').toLowerCase(),
+    embeddingRpcUrl: process.env.EMBEDDING_RPC_URL || null,
   },
 }

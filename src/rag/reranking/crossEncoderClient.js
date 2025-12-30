@@ -1,25 +1,75 @@
 const axios = require('axios')
 const config = require('../../config')
 const logger = require('../../utils/logger')
+const { RpcClient } = require('../../lib/rpc-client')
 
 let lastRerankerWarnAt = 0
 const RERANKER_WARN_EVERY_MS = 30_000
 
+const COLOR = {
+  GREEN: '\x1b[32m',
+  CYAN: '\x1b[36m',
+  YELLOW: '\x1b[33m',
+  RED: '\x1b[31m',
+  RESET: '\x1b[0m',
+  BOLD: '\x1b[1m',
+}
+
+let rpcClient = null
+let connectionLogged = false
+
+const initRpcClient = () => {
+  if (!rpcClient && config?.rag?.rerankerRpcUrl) {
+    rpcClient = new RpcClient(config.rag.rerankerRpcUrl, {
+      serviceName: 'reranker',
+      timeout: 15000,
+      warnInterval: RERANKER_WARN_EVERY_MS,
+    })
+
+    if (!connectionLogged) {
+      logger.info(
+        `${COLOR.BOLD}${COLOR.GREEN}[reranker] ✓ RPC client initialized${COLOR.RESET}`
+      )
+      logger.info(
+        `${COLOR.CYAN}[reranker] → url=${config.rag.rerankerRpcUrl}${COLOR.RESET}`
+      )
+      connectionLogged = true
+    }
+  }
+  return rpcClient
+}
+
 const rerank = async ({ query, documents }) => {
-  const url = config?.rag?.rerankerUrl
+  const url = config?.rag?.rerankerRpcUrl
+
+  if (!documents || documents.length === 0) {
+    return []
+  }
 
   if (!url) {
+    logger.warn(
+      `${COLOR.YELLOW}[reranker] RPC URL not configured, using neutral scores${COLOR.RESET}`
+    )
     return documents.map((_d, idx) => ({ index: idx, score: 1 }))
   }
 
   try {
-    const response = await axios.post(
-      url,
-      { query, documents },
-      { timeout: 15000 }
+    logger.info(
+      `${COLOR.CYAN}[reranker] → RPC call: rerank(${documents.length} docs)${COLOR.RESET}`
     )
 
-    return response.data
+    const client = initRpcClient()
+    if (!client) {
+      throw new Error('RPC client initialization failed')
+    }
+
+    const result = await client.call('rerank', { query, documents })
+
+    logger.info(
+      `${COLOR.GREEN}[reranker] ✓ RPC response: ${result.length} scores${COLOR.RESET}`
+    )
+
+    return result
   } catch (error) {
     const now = Date.now()
     if (now - lastRerankerWarnAt >= RERANKER_WARN_EVERY_MS) {
@@ -31,14 +81,19 @@ const rerank = async ({ query, documents }) => {
       const message = error?.message || String(error)
 
       logger.warn(
-        `[reranker] Request failed; reranking degraded to neutral scores. url=${url} status=${status || 'n/a'} code=${code || 'n/a'} message=${message}`
+        `${COLOR.RED}[reranker] ✗ RPC call failed; using neutral scores${COLOR.RESET}`
+      )
+      logger.warn(
+        `${COLOR.YELLOW}[reranker] url=${url} status=${status || 'n/a'} code=${
+          code || 'n/a'
+        } message=${message}${COLOR.RESET}`
       )
 
       if (data) {
         logger.warn(
-          `[reranker] Response body: ${
+          `${COLOR.YELLOW}[reranker] Response: ${
             typeof data === 'string' ? data : JSON.stringify(data)
-          }`
+          }${COLOR.RESET}`
         )
       }
     }
@@ -47,4 +102,6 @@ const rerank = async ({ query, documents }) => {
   }
 }
 
-module.exports = { rerank }
+module.exports = {
+  rerank,
+}

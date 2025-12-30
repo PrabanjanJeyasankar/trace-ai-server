@@ -6,6 +6,8 @@ const config = require('./config')
 const { initQdrantCollections } = require('./lib/qdrant.collections')
 const CronService = require('./services/cron.service')
 const { setupWebSocketHandlers } = require('./websocket/messageHandler')
+const LegalService = require('./services/embeddings/legal.service')
+const logger = require('./utils/logger')
 
 process.on('uncaughtException', (error) => {
   console.error('Uncaught exception:', error)
@@ -23,13 +25,18 @@ const startServer = async () => {
     await initQdrantCollections()
   } catch (error) {
     console.error(
-      `Startup failed: ${error?.message || error}. Check QDRANT_URL/QDRANT_API_KEY and any dependent services (Mongo, Qdrant, reranker).`
+      `Startup failed: ${
+        error?.message || error
+      }. Check QDRANT_URL/QDRANT_API_KEY and any dependent services (Mongo, Qdrant, reranker).`
     )
     process.exit(1)
   }
 
   CronService.startDailyNewsIngestion()
   CronService.startKeepAlive()
+  LegalService.warmupKeywordIndexFromQdrant().catch((err) => {
+    logger.warn(`Legal keyword warmup failed: ${err.message}`)
+  })
 
   const server = http.createServer(app)
   const io = new Server(server, {
@@ -54,6 +61,12 @@ const startServer = async () => {
     const rerankingEnabled = ragConfig.ENABLE_RERANKING ? 'ENABLED' : 'DISABLED'
     const rerankingStatus = ragConfig.ENABLE_RERANKING ? '✓' : '✗'
 
+    const pdfIngestionUrl =
+      process.env.PDF_INGESTION_URL || 'http://localhost:8003'
+    const r2Bucket = process.env.CLOUDFLARE_R2_BUCKET_NAME || 'not-configured'
+    const r2PublicDomain =
+      process.env.CLOUDFLARE_R2_PUBLIC_DOMAIN || 'not-configured'
+
     const version = process.env.npm_package_version || '1.0.0'
     const nodeVersion = process.version
     const time = new Date().toISOString()
@@ -69,7 +82,7 @@ const startServer = async () => {
     console.log(
       `
     ${BLUE}============================================================${RESET}
-    ${CYAN}  AI Chat Server${RESET}
+    ${CYAN}  Trace Server${RESET}
     ${BLUE}------------------------------------------------------------${RESET}
 
     ${GREEN}  Environment     :${RESET} ${env}
@@ -83,6 +96,10 @@ const startServer = async () => {
     ${
       ragConfig.ENABLE_RERANKING ? GREEN : RED
     }  Reranking       :${RESET} ${rerankingStatus} ${rerankingEnabled}
+
+    ${CYAN}  PDF Ingestion   :${RESET} ${pdfIngestionUrl}
+    ${CYAN}  R2 Bucket       :${RESET} ${r2Bucket}
+    ${CYAN}  R2 Public       :${RESET} ${r2PublicDomain}
 
     ${YELLOW}  App Version     :${RESET} ${version}
     ${YELLOW}  Node Version    :${RESET} ${nodeVersion}

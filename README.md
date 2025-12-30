@@ -1,4 +1,4 @@
-# AI Chat Server
+# Trace Server
 
 ## Complete Documentation
 

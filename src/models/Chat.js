@@ -26,7 +26,7 @@ const chatSchema = new mongoose.Schema(
 
     mode: {
       type: String,
-      enum: ['default', 'news'],
+      enum: ['default', 'news', 'law'],
       default: 'default',
     },
 

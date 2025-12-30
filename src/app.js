@@ -9,6 +9,8 @@ const config = require('./config')
 
 const app = express()
 
+app.set('trust proxy', 1)
+
 app.use((request, response, next) => {
   logger.info(`${request.method} ${request.originalUrl}`)
   next()
