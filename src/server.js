@@ -51,7 +51,7 @@ const startServer = async () => {
 
   setupWebSocketHandlers(io)
 
-  server.listen(config.server.port, () => {
+  server.listen(config.server.port, '0.0.0.0', () => {
     const { host, port, env } = config.server
     const ragConfig = require('./config/rag')
 
