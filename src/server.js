@@ -9,6 +9,26 @@ const { setupWebSocketHandlers } = require('./websocket/messageHandler')
 const LegalService = require('./services/embeddings/legal.service')
 const logger = require('./utils/logger')
 
+// Track initialization state for health checks
+let isInitialized = false
+let initError = null
+
+// Expose initialization state for health checks
+app.get('/health/ready', (req, res) => {
+  if (isInitialized) {
+    return res.status(200).json({ status: 'ready', initialized: true })
+  }
+  if (initError) {
+    return res.status(503).json({ status: 'error', error: initError.message })
+  }
+  return res.status(503).json({ status: 'initializing', initialized: false })
+})
+
+// Simple liveness check - always returns 200 if server is running
+app.get('/health/live', (req, res) => {
+  res.status(200).json({ status: 'alive', uptime: process.uptime() })
+})
+
 process.on('uncaughtException', (error) => {
   console.error('Uncaught exception:', error)
   process.exit(1)
@@ -19,25 +39,33 @@ process.on('unhandledRejection', (error) => {
   process.exit(1)
 })
 
-const startServer = async () => {
+// Initialize dependencies after server is listening
+const initializeDependencies = async () => {
   try {
+    console.log('Initializing MongoDB and Qdrant...')
     await connectDB()
     await initQdrantCollections()
+
+    CronService.startDailyNewsIngestion()
+    CronService.startKeepAlive()
+    LegalService.warmupKeywordIndexFromQdrant().catch((err) => {
+      logger.warn(`Legal keyword warmup failed: ${err.message}`)
+    })
+
+    isInitialized = true
+    console.log('✓ All dependencies initialized successfully')
   } catch (error) {
+    initError = error
     console.error(
-      `Startup failed: ${
+      `Initialization failed: ${
         error?.message || error
       }. Check QDRANT_URL/QDRANT_API_KEY and any dependent services (Mongo, Qdrant, reranker).`
     )
-    process.exit(1)
+    // Don't exit - keep server running for debugging via health endpoint
   }
+}
 
-  CronService.startDailyNewsIngestion()
-  CronService.startKeepAlive()
-  LegalService.warmupKeywordIndexFromQdrant().catch((err) => {
-    logger.warn(`Legal keyword warmup failed: ${err.message}`)
-  })
-
+const startServer = async () => {
   const server = http.createServer(app)
   const io = new Server(server, {
     cors: {
@@ -108,6 +136,9 @@ const startServer = async () => {
     ${BLUE}============================================================${RESET}
     `
     )
+
+    // Initialize dependencies AFTER server is listening (so Render detects port)
+    initializeDependencies()
   })
 
   server.setTimeout(30000)
