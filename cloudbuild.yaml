@@ -26,8 +26,9 @@ steps:
       - --max-instances=10
       - --min-instances=0
       - --port=8080
-      - --timeout=300
+      - --timeout=600
       - --concurrency=80
+      - --startup-cpu-boost
       - --set-env-vars=NODE_ENV=production
 images:
   - europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/trace-ai-server:$SHORT_SHA
