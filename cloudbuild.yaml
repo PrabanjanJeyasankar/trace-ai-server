@@ -29,6 +29,6 @@ steps:
       - --timeout=600
       - --concurrency=80
       - --startup-cpu-boost
-      - --set-env-vars=NODE_ENV=production
+      - --set-env-vars=NODE_ENV=production,EMBEDDING_RPC_URL=https://trace-embedding-service-${PROJECT_NUMBER}.europe-west1.run.app/rpc
 images:
   - europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/trace-ai-server:$SHORT_SHA
