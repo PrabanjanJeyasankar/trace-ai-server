@@ -35,9 +35,9 @@ COPY . .
 
 # Set environment variables for production
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=8080
 
-EXPOSE 3000 8000 8001
+EXPOSE 8080 8000 8001
 
 # Start API + embedding + reranker in one container
 CMD ["./start-all.sh"]

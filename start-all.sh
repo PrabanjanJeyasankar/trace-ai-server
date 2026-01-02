@@ -47,7 +47,7 @@ if ! kill -0 $RERANKER_PID 2>/dev/null; then
   exit 1
 fi
 
-echo "All services ready. Starting node server on :${PORT:-3000}..."
+echo "All services ready. Starting node server on :${PORT:-8080}..."
 npm run start &
 NODE_PID=$!
 
