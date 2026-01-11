@@ -19,8 +19,15 @@ class LegalService {
    *
    */
   static async warmupKeywordIndexFromQdrant(opts = {}) {
-    const limit = Number(opts.limit) || 2000
-    const batchSize = Math.min(Math.max(Number(opts.batchSize) || 256, 1), 512)
+    const limit =
+      Number(opts.limit ?? process.env.LEGAL_WARMUP_LIMIT) || 2000
+    const batchSize = Math.min(
+      Math.max(
+        Number(opts.batchSize ?? process.env.LEGAL_WARMUP_BATCH_SIZE) || 256,
+        1
+      ),
+      512
+    )
 
     let loaded = 0
     let offset = undefined

@@ -11,6 +11,9 @@ const createChat = asyncHandler(async (request, response) => {
     firstMessageContent,
   })
 
+  request.event.addUser(request.user)
+  request.event.addChat(chat, { isFirstMessage: true })
+
   return responseFormatter.success(
     response,
     201,
@@ -23,6 +26,9 @@ const getChats = asyncHandler(async (request, response) => {
   const userId = request.user.id
 
   const chats = await chatService.getUserChats(userId)
+
+  request.event.addUser(request.user)
+  request.event.addMetric('chats_count', chats.length)
 
   return responseFormatter.success(
     response,
@@ -37,6 +43,9 @@ const getChat = asyncHandler(async (request, response) => {
   const userId = request.user.id
 
   const chat = await chatService.getChatById(chatId, userId)
+
+  request.event.addUser(request.user)
+  request.event.addChat(chat)
 
   return responseFormatter.success(
     response,
@@ -53,6 +62,9 @@ const renameChat = asyncHandler(async (request, response) => {
 
   const updatedChat = await chatService.renameChat(chatId, userId, title)
 
+  request.event.addUser(request.user)
+  request.event.addChat(updatedChat)
+
   return responseFormatter.success(
     response,
     200,
@@ -67,6 +79,9 @@ const deleteChat = asyncHandler(async (request, response) => {
 
   await chatService.deleteChat(chatId, userId)
 
+  request.event.addUser(request.user)
+  request.event.addMetric('chat_deleted', chatId)
+
   return responseFormatter.success(response, 200, 'Chat deleted successfully')
 })
 
@@ -80,6 +95,9 @@ const updateFinalTitle = asyncHandler(async (request, response) => {
     userId,
     finalTitle
   )
+
+  request.event.addUser(request.user)
+  request.event.addChat(updatedChat)
 
   return responseFormatter.success(
     response,

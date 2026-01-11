@@ -53,8 +53,6 @@ const buildNewsContext = (newsResults) => {
 const buildLegalContext = (legalResults) => {
   if (legalResults.length === 0) return ''
 
-  console.log('[buildLegalContext] legalResults count:', legalResults.length)
-
   const sourcesList = legalResults
     .map((result, idx) => {
       const { doc_id, chunk_index, text, page_number } = result.payload

@@ -2,8 +2,8 @@ const jwt = require('jsonwebtoken')
 const config = require('../config')
 const authService = require('../services/auth.service')
 const messageService = require('../services/message.service')
-const logger = require('../utils/logger')
 const { PROGRESS_SCHEMA_VERSION } = require('../utils/progressMessages')
+const { createWebSocketEvent } = require('../utils/wideEventLogger')
 
 const authenticateSocket = async (socket, next) => {
   try {
@@ -30,31 +30,38 @@ const authenticateSocket = async (socket, next) => {
     socket.user = user
     next()
   } catch (error) {
-    logger.error(`[WebSocket Auth] Authentication failed: ${error.message}`)
     next(new Error('Authentication failed'))
   }
 }
 
 const handleCreateMessage = async (socket, data) => {
-  let messageId = data?.messageId || 'unknown'
+  const messageId = data?.messageId || 'unknown'
+  const { chatId, content, mode, streaming = true } = data
+
+  const wideEvent = createWebSocketEvent(socket, 'message:create', messageId)
+  wideEvent.addUser(socket.user)
+  wideEvent.addQuery({ text: content, mode, messageId })
+
+  let eventsEmitted = 0
+  let chunksSent = 0
+
+  const emitToClient = (eventName, payload) => {
+    socket.emit(eventName, payload)
+    eventsEmitted++
+  }
 
   try {
-    const { chatId, content, mode, streaming = true } = data
-    messageId = data.messageId
-
-    logger.info(
-      `[WebSocket] Message creation started: ${messageId} (streaming: ${streaming})`
-    )
-
-    socket.emit('message:received', {
+    emitToClient('message:received', {
       messageId,
       status: 'received',
+      timestamp: new Date().toISOString(),
     })
 
-    socket.emit('message:processing', {
+    emitToClient('message:processing', {
       messageId,
       status: 'processing',
       stage: 'creating_user_message',
+      timestamp: new Date().toISOString(),
     })
 
     const result = await messageService.createMessage({
@@ -63,37 +70,17 @@ const handleCreateMessage = async (socket, data) => {
       content,
       mode,
       streaming,
+      wideEvent,
       onProgress: (stage, details) => {
-        try {
-          const debug = {
-            messageId,
-            stage,
-            detailsStage: details?.stage,
-            substage: details?.substage,
-            substageType: typeof details?.substage,
-            message: details?.message,
-            progressVersion:
-              details?.progressVersion ??
-              details?.schemaVersion ??
-              details?.version,
-            serverTime: new Date().toISOString(),
-          }
-          logger.info(`VL_BACKEND_PROGRESS ${JSON.stringify(debug)}`)
-        } catch (e) {
-          logger.warn(`VL_BACKEND_PROGRESS_LOG_ERROR ${e?.message || e}`)
-        }
-
-        // Emit progress updates
-        socket.emit('message:progress', {
+        emitToClient('message:progress', {
           messageId,
           stage,
           details,
           timestamp: new Date().toISOString(),
         })
 
-        // Emit chain of thoughts updates to client (news mode only)
         if (stage === 'chain_of_thoughts') {
-          socket.emit('message:chain_of_thoughts', {
+          emitToClient('message:chain_of_thoughts', {
             messageId,
             phase: details?.phase,
             status: details?.status,
@@ -108,24 +95,25 @@ const handleCreateMessage = async (socket, data) => {
         }
       },
       onLLMChunk: (chunkData) => {
-        // Emit streaming chunks to client
-        socket.emit('message:chunk', {
+        chunksSent++
+        emitToClient('message:chunk', {
           messageId,
           ...chunkData,
+          timestamp: new Date().toISOString(),
         })
       },
       onLLMComplete: (completeData) => {
-        // Emit completion notification
-        socket.emit('message:llm_complete', {
+        emitToClient('message:llm_complete', {
           messageId,
           ...completeData,
+          timestamp: new Date().toISOString(),
         })
       },
       onLLMError: (errorData) => {
-        // Emit LLM error
-        socket.emit('message:llm_error', {
+        emitToClient('message:llm_error', {
           messageId,
           ...errorData,
+          timestamp: new Date().toISOString(),
         })
       },
     })
@@ -142,25 +130,55 @@ const handleCreateMessage = async (socket, data) => {
       title: result.title || null,
     }
 
-    socket.emit('message:completed', {
+    emitToClient('message:completed', {
       messageId,
       status: 'completed',
       data: cleanResult,
+      timestamp: new Date().toISOString(),
     })
 
-    logger.info(`[WebSocket] Message creation completed: ${messageId}`)
-  } catch (error) {
-    logger.error(
-      `[WebSocket] Message creation failed: ${messageId} - ${error.message}`
+    if (result.metrics?.rag) {
+      wideEvent.addRAG(result.metrics.rag)
+    }
+
+    if (result.metrics?.memory) {
+      wideEvent.addMemory(result.metrics.memory)
+    }
+
+    if (result.metrics?.llm) {
+      wideEvent.addLLM({
+        ...result.metrics.llm,
+        chunksStreamed: chunksSent,
+      })
+    }
+
+    wideEvent.addChat(
+      { _id: result.chatId, mode },
+      { isFirstMessage: result.isFirstMessage, title: result.title }
     )
 
-    socket.emit('message:error', {
+    wideEvent.addWebSocket({
+      socketId: socket.id,
+      eventName: 'message:create',
+      messageId,
+      streaming,
+      chunksSent,
+      eventsEmitted,
+    })
+
+    wideEvent.complete(200)
+  } catch (error) {
+    wideEvent.addError(error)
+    wideEvent.complete(error.statusCode || 500)
+
+    emitToClient('message:error', {
       messageId,
       status: 'error',
       error: {
         message: error.message,
         code: error.statusCode || error.status || 500,
       },
+      timestamp: new Date().toISOString(),
     })
   }
 }
@@ -169,23 +187,13 @@ const setupWebSocketHandlers = (io) => {
   io.use(authenticateSocket)
 
   io.on('connection', (socket) => {
-    logger.info(
-      `[WebSocket] Client connected: ${socket.id} (user: ${socket.user.id})`
-    )
-
     socket.join(`user_${socket.user.id}`)
 
     socket.on('message:create', (data) => handleCreateMessage(socket, data))
 
-    socket.on('disconnect', (reason) => {
-      logger.info(
-        `[WebSocket] Client disconnected: ${socket.id} (reason: ${reason})`
-      )
-    })
+    socket.on('disconnect', () => {})
 
-    socket.on('error', (error) => {
-      logger.error(`[WebSocket] Socket error: ${socket.id} - ${error.message}`)
-    })
+    socket.on('error', () => {})
 
     socket.emit('connected', {
       socketId: socket.id,
@@ -194,8 +202,6 @@ const setupWebSocketHandlers = (io) => {
       timestamp: new Date().toISOString(),
     })
   })
-
-  logger.info('[WebSocket] Handlers setup completed')
 }
 
 module.exports = {

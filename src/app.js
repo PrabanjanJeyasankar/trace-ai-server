@@ -3,6 +3,7 @@ const cors = require('cors')
 const cookieParser = require('cookie-parser')
 const router = require('./routes')
 const { AppError, errorHandler } = require('./middleware/errorHandler')
+const requestContext = require('./middleware/requestContext')
 const logger = require('./utils/logger')
 const { globalRateLimiter } = require('./utils/rateLimiter')
 const config = require('./config')
@@ -21,6 +22,7 @@ app.use(cookieParser())
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ extended: true, limit: '50mb' }))
 
+app.use(requestContext)
 app.use('/api/v1', globalRateLimiter, router)
 
 app.use((request, response, next) => {

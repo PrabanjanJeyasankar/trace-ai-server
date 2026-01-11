@@ -1,13 +1,10 @@
 const { asyncHandler } = require('../middleware/asyncHandler')
 const authService = require('../services/auth.service')
-const logger = require('../utils/logger')
 const { success } = require('../utils/response')
 const { AppError } = require('../middleware/errorHandler')
 
 const signup = asyncHandler(async (request, response) => {
   const { email, password, name } = request.body
-
-  logger.info(`[auth] signup:start email=${email}`)
 
   const result = await authService.createUser(email, password, name)
 
@@ -30,10 +27,13 @@ const signup = asyncHandler(async (request, response) => {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   })
 
+  request.event.addUser(result.user)
+  request.event.addMetric(
+    'auth_action',
+    result.existing ? 'login_existing' : 'signup'
+  )
+
   if (result.existing) {
-    logger.info(
-      `[auth] signup:existing userId=${result.user._id} email=${result.user.email}`
-    )
     return success(
       response,
       200,
@@ -47,9 +47,6 @@ const signup = asyncHandler(async (request, response) => {
     )
   }
 
-  logger.info(
-    `[auth] signup:created userId=${result.user._id} email=${result.user.email}`
-  )
   return success(response, 201, 'User registered successfully', {
     user: {
       id: result.user._id,
@@ -60,8 +57,6 @@ const signup = asyncHandler(async (request, response) => {
 
 const login = asyncHandler(async (request, response) => {
   const { email, password } = request.body
-
-  logger.info(`[auth] login:start email=${email}`)
 
   const user = await authService.validateUserCredentials(email, password)
   const accessToken = authService.generateAccessToken(user._id)
@@ -83,7 +78,9 @@ const login = asyncHandler(async (request, response) => {
     maxAge: 7 * 24 * 60 * 60 * 1000,
   })
 
-  logger.info(`[auth] login:success userId=${user._id} email=${user.email}`)
+  request.event.addUser(user)
+  request.event.addMetric('auth_action', 'login')
+
   success(response, 200, 'Login successful', {
     user: {
       id: user._id,
@@ -95,7 +92,8 @@ const login = asyncHandler(async (request, response) => {
 const me = asyncHandler(async (request, response) => {
   const user = await authService.getUserById(request.user.id)
 
-  logger.info(`[auth] me userId=${user._id} email=${user.email}`)
+  request.event.addUser(user)
+
   success(response, 200, 'User profile fetched', {
     user: {
       id: user._id,
@@ -107,8 +105,6 @@ const me = asyncHandler(async (request, response) => {
 
 const refresh = asyncHandler(async (request, response) => {
   const refreshToken = request.cookies.refreshToken
-
-  logger.info(`[auth] refresh:start hasToken=${Boolean(refreshToken)}`)
 
   if (!refreshToken) {
     throw new AppError('Refresh token not found', 401)
@@ -124,7 +120,9 @@ const refresh = asyncHandler(async (request, response) => {
     maxAge: 15 * 60 * 1000,
   })
 
-  logger.info(`[auth] refresh:success userId=${user._id} email=${user.email}`)
+  request.event.addUser(user)
+  request.event.addMetric('auth_action', 'token_refresh')
+
   success(response, 200, 'Token refreshed successfully', {
     user: {
       id: user._id,
@@ -136,7 +134,7 @@ const refresh = asyncHandler(async (request, response) => {
 const logout = asyncHandler(async (request, response) => {
   await authService.clearRefreshToken(request.user.id)
 
-  logger.info(`[auth] logout userId=${request.user.id}`)
+  request.event.addMetric('auth_action', 'logout')
 
   response.clearCookie('accessToken', {
     httpOnly: true,

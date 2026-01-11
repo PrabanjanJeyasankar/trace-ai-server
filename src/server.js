@@ -9,6 +9,20 @@ const { setupWebSocketHandlers } = require('./websocket/messageHandler')
 const LegalService = require('./services/embeddings/legal.service')
 const logger = require('./utils/logger')
 
+const resolveListenHost = () => {
+  const envHost = config.server.host
+  if (
+    config.server.env === 'production' &&
+    (envHost === 'localhost' || envHost === '127.0.0.1')
+  ) {
+    logger.warn(
+      `HOST=${envHost} blocks external access; falling back to 0.0.0.0`
+    )
+    return '0.0.0.0'
+  }
+  return envHost
+}
+
 // Track initialization state for health checks
 let isInitialized = false
 let initError = null
@@ -46,11 +60,19 @@ const initializeDependencies = async () => {
     await connectDB()
     await initQdrantCollections()
 
-    CronService.startDailyNewsIngestion()
+    const startupWarmupEnabled =
+      process.env.STARTUP_WARMUP_ENABLED !== 'false'
+
+    if (startupWarmupEnabled) {
+      CronService.startDailyNewsIngestion()
+      LegalService.warmupKeywordIndexFromQdrant().catch((err) => {
+        logger.warn(`Legal keyword warmup failed: ${err.message}`)
+      })
+    } else {
+      logger.info('Startup warmups disabled via STARTUP_WARMUP_ENABLED=false')
+    }
+
     CronService.startKeepAlive()
-    LegalService.warmupKeywordIndexFromQdrant().catch((err) => {
-      logger.warn(`Legal keyword warmup failed: ${err.message}`)
-    })
 
     isInitialized = true
     console.log('✓ All dependencies initialized successfully')
@@ -79,8 +101,10 @@ const startServer = async () => {
 
   setupWebSocketHandlers(io)
 
-  server.listen(config.server.port, '0.0.0.0', () => {
-    const { host, port, env } = config.server
+  const listenHost = resolveListenHost()
+  server.listen(config.server.port, listenHost, () => {
+    const { port, env } = config.server
+    const host = listenHost
     const ragConfig = require('./config/rag')
 
     const provider = process.env.AI_PROVIDER || 'hf'

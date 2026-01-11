@@ -164,7 +164,7 @@ class NewsService {
   static async warmupKeywordIndexFromMongo(opts = {}) {
     // STEP 0 (Startup): warm up the in-memory BM25 index from MongoDB
     // so keyword retrieval works even after a server restart.
-    const limit = Number(opts.limit) || 500
+    const limit = Number(opts.limit ?? process.env.NEWS_WARMUP_LIMIT) || 500
 
     const articles = await NewsArticle.find({})
       .sort({ publishedAt: -1 })
